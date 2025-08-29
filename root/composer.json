@@ -1,0 +1,10 @@
+{
+    "name": "citrus/testcitrus",
+    "description": "Katalog proizvoda za Citrus Systems",
+    "autoload": {
+        "psr-4": {
+            "Citrus\\Testcitrus\\": "src/"
+        }
+    },
+    "require": {}
+}
