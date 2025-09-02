@@ -1,0 +1,10 @@
+{
+    "name": "dule/testcitrus",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Dule\\Testcitrus\\": "src/"
+        }
+    },
+    "require": {}
+}
