@@ -1,1 +1,42 @@
+# Environment Files
+.env
+.env.*
+!.env.example
+
+# Composer Dependencies
 /vendor/
+/composer.lock
+
+# Docker Files
+/docker-compose.yml
+/docker-compose.prod.yml
+Dockerfile
+*.dockerignore
+
+# Temporary Files and Build Artifacts
+/tmp/
+/cache/
+/logs/
+*.log
+*.cache
+
+# IDE and Editor Files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+
+# Testing and Coverage
+/coverage/
+phpunit.xml
+
+# Database and Local Storage
+/storage/*.sql
+/storage/backups/
+
+# Node Modules (if you add npm for frontend)
+node_modules/
