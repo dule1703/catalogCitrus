@@ -5,9 +5,12 @@ use Psr\Log\LoggerInterface;
 
 return [
     AuthMiddleware::class => function ($container) {
+        if (!isset($_ENV['JWT_SECRET'])) {
+            throw new \RuntimeException('JWT_SECRET nije definisan u .env fajlu.');
+        }
         return new AuthMiddleware(
             $container->get(LoggerInterface::class),
-            $_ENV['JWT_SECRET'] ?? 'your-secret-key', 
+            $_ENV['JWT_SECRET'],
             '/login'
         );
     },
