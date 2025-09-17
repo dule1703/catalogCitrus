@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 use FastRoute\Dispatcher;
 use Psr\Log\LoggerInterface;
 
@@ -28,12 +32,15 @@ if (false !== $pos = strpos($uri, '?')) {
 }
 $uri = rawurldecode($uri);
 
+
 $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+
 switch ($routeInfo[0]) {
     case Dispatcher::NOT_FOUND:
         http_response_code(404);
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Stranica nije pronađena']);
+        echo '<h1>404 - Stranica nije pronađena</h1>';
+        // header('Location: /');
+        // exit;
         break;
     case Dispatcher::METHOD_NOT_ALLOWED:
         http_response_code(405);
@@ -53,21 +60,41 @@ switch ($routeInfo[0]) {
                     if ($response !== null) {
                         header('Content-Type: application/json');
                         echo is_array($response) ? json_encode($response) : $response;
-                        return;
+                        exit;
                     }
                 }
                 $handler = $handler['handler'];
             }
 
-            // Pozivanje handler-a
-            $handler($container, $vars);
+            // Pretpostavka: $handler je [$controllerClass, $method]
+            if (is_array($handler) && count($handler) === 2) {
+                [$controllerClass, $method] = $handler;
+
+                // Inicijalizacija kontrolera
+                $controller = $container->get($controllerClass);
+
+                // Pozivanje metode sa varijablama
+                if (method_exists($controller, $method)) {
+                    call_user_func_array([$controller, $method], [$vars]);
+                } else {
+                    throw new \RuntimeException("Metoda {$method} ne postoji u {$controllerClass}");
+                }
+            } else {
+                throw new \RuntimeException("Nevažeći handler format");
+            }
         } catch (\Throwable $e) {
             $container->get(LoggerInterface::class)->error(
                 "Greška na serveru: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}"
             );
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Greška na serveru']);
+            //echo json_encode(['error' => 'Greška na serveru']);
+            echo '<pre>';
+echo "Greška: " . $e->getMessage() . "\n";
+echo "Fajl: " . $e->getFile() . "\n";
+echo "Linija: " . $e->getLine() . "\n";
+//echo "Stack trace:\n" . $e->getTraceAsString();
+echo '</pre>';
         }
         break;
 }

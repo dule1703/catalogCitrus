@@ -1,11 +1,12 @@
 <?php
-namespace App\Middleware;
+namespace App\Middlewares;
 
+use App\Interfaces\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-class AuthMiddleware {
+class AuthMiddleware implements MiddlewareInterface {
     private $logger;
     private $jwtSecret;
     private $redirectUrl;

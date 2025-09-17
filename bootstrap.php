@@ -1,11 +1,10 @@
 <?php
 namespace App;
 
-use DI\Container;
+use DI\ContainerBuilder;
 use Dotenv\Dotenv;
 use Psr\Log\LoggerInterface;
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
+use RuntimeException;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -13,65 +12,112 @@ require_once __DIR__ . '/vendor/autoload.php';
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
+// ✅ Exception handler 
+set_exception_handler(function (\Throwable $exception) use (&$container) {
+    // Pokušaj da loguješ ako kontejner postoji
+    if ($container && $container->has(LoggerInterface::class)) {
+        $container->get(LoggerInterface::class)->error(
+            "Exception: {$exception->getMessage()} in {$exception->getFile()}:{$exception->getLine()}"
+        );
+    } else {
+        // Fallback: loguj u fajl ako kontejner nije spreman
+        $logFile = __DIR__ . '/logs/bootstrap.log';
+        if (!is_dir(__DIR__ . '/logs')) {
+            mkdir(__DIR__ . '/logs', 0755, true);
+        }
+        file_put_contents($logFile, date('[Y-m-d H:i:s] ') . "Bootstrap Exception: " . $exception->getMessage() . "\n", FILE_APPEND);
+    }
+
+    // ✅ APP_DEBUG logika — uvek koristi $_ENV
+    $debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+    if ($debug) {
+        throw $exception; // developer vidi stack trace
+    }
+
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Greška na serveru']);
+    exit(1);
+});
+
+// ✅ Provera .env varijabli — sada je bezbedno!
+$requiredEnvVars = [
+    'DB_HOST',
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASS',
+    'REDIS_HOST',
+    'MAIL_HOST',
+    'MAIL_PORT',
+    'MAIL_USERNAME',
+    'MAIL_PASSWORD',
+    'MAIL_FROM_ADDRESS',
+];
+
+$missing = array_filter($requiredEnvVars, fn($var) => empty($_ENV[$var]));
+
+if (!empty($missing)) {
+    throw new RuntimeException('Nedostaju obavezne .env promenljive: ' . implode(', ', $missing));
+}
+
 // Kreiranje DI kontejnera
-$container = new Container();
+$builder = new ContainerBuilder();
 
-// Definicija osnovnih zavisnosti
-$container->set(Database::class, function () {
-    return new Database(
-        $_ENV['DB_HOST'] ?? '127.0.0.1',
-        $_ENV['DB_NAME'] ?? 'testcitrus',
-        $_ENV['DB_USER'] ?? 'root',
-        $_ENV['DB_PASS'] ?? ''
-    );
-});
+if (($_ENV['APP_ENV'] ?? 'local') === 'production') {
+    $diCacheDir = __DIR__ . '/cache/di';
+    if (!is_dir($diCacheDir)) {
+        mkdir($diCacheDir, 0755, true);
+    }
+    $builder->enableCompilation($diCacheDir);
+}
 
-$container->set(RedisClient::class, function () {
-    return new RedisClient(
-        $_ENV['REDIS_HOST'] ?? '127.0.0.1',
-        $_ENV['REDIS_PORT'] ?? 6379
-    );
-});
+$builder->addDefinitions(__DIR__ . '/config/dependencies.php');
+$builder->useAutowiring(true);
+$container = $builder->build(); // ✅ Sada dodeljujemo stvarnu vrednost — handler će je “videti” zahvaljujući `use (&$container)`
 
-$container->set(LoggerInterface::class, function () {
-    $logger = new Logger('app');
-    $logger->pushHandler(new StreamHandler(__DIR__ . '/log/app.log', Logger::DEBUG));
-    return $logger;
-});
-
-// Učitavanje repozitorijuma
+// Učitavanje repozitorijuma, servisa, middleware-a
 $repositories = require __DIR__ . '/config/repositories.php';
 foreach ($repositories as $key => $factory) {
     $container->set($key, $factory);
 }
 
-// Učitavanje servisa
 $services = require __DIR__ . '/config/services.php';
 foreach ($services as $key => $factory) {
     $container->set($key, $factory);
 }
 
-// Učitavanje middleware-a
 $middlewares = require __DIR__ . '/config/middlewares.php';
 foreach ($middlewares as $key => $factory) {
     $container->set($key, $factory);
 }
 
-// Error i exception handler-i
-set_error_handler(function ($severity, $message, $file, $line) use ($container) {
-    $container->get(LoggerInterface::class)->error("PHP Error: [$severity] $message in $file:$line");
-});
+// ✅ Shutdown handler — koristi kontejner
+register_shutdown_function(function () use ($container) {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR])) {
 
-set_exception_handler(function (\Throwable $exception) use ($container) {
-    $container->get(LoggerInterface::class)->error(
-        "Exception: {$exception->getMessage()} in {$exception->getFile()}:{$exception->getLine()}"
-    );
-    if (($_ENV['APP_ENV'] ?? 'local') === 'local') {
-        throw $exception;
+        if ($container && $container->has(LoggerInterface::class)) {
+            $container->get(LoggerInterface::class)->critical(
+                "Fatal Error: [{$error['type']}] {$error['message']} in {$error['file']}:{$error['line']}"
+            );
+        } else {
+            $logFile = __DIR__ . '/logs/bootstrap.log';
+            file_put_contents($logFile, date('[Y-m-d H:i:s] ') . "Bootstrap Fatal: " . $error['message'] . "\n", FILE_APPEND);
+        }
+
+        $debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if ($debug) {
+            echo "<h1>Fatal Error</h1><pre>";
+            print_r($error);
+            exit(1);
+        }
+
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Greška na serveru']);
+        exit(1);
     }
-    http_response_code(500);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Greška na serveru']);
 });
 
 return $container;

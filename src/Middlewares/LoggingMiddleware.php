@@ -1,9 +1,10 @@
 <?php
-namespace App\Middleware;
+namespace App\Middlewares;
 
+use App\Interfaces\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 
-class LoggingMiddleware {
+class LoggingMiddleware implements MiddlewareInterface {
     private $logger;
 
     public function __construct(LoggerInterface $logger) {

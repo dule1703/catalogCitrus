@@ -1,26 +1,59 @@
 <?php
 namespace App\Repositories;
 
+use PDO;
+use PDOException;
 use App\Database;
-use InvalidArgumentException;
 
-class UserRepository {
-    private $database;
+class UserRepository
+{
+    private $db;
 
-    public function __construct(Database $database) {
-        $this->database = $database;
+    public function __construct($db) 
+    {
+        $this->db = $db;
     }
 
-    public function getAllUsers() {
-        $result = $this->database->query("SELECT * FROM users");
-        return $result;
+    // Check if user exists by username or email
+    public function userExists(string $username, string $email): bool
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM users WHERE username = :username OR email = :email');
+        $stmt->execute(['username' => $username, 'email' => $email]);
+        return $stmt->fetchColumn() > 0;
     }
 
-    public function getUserById($id) {
-        if (!is_numeric($id)) {
-            throw new InvalidArgumentException('ID mora biti broj');
+    // Create new user
+    public function create(array $data): int
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO users (username, email, password, role, two_factor_enabled, created_at) 
+                VALUES (:username, :email, :password, :role, :two_factor_enabled, NOW())'
+            );
+            $stmt->execute($data);
+            return (int)$this->db->lastInsertId();
+        } catch (PDOException $e) {
+            throw new PDOException('Greška pri kreiranju korisnika: ' . $e->getMessage());
         }
-        $result = $this->database->query("SELECT * FROM users WHERE id = :id", [':id' => $id]);
-        return $result[0] ?? null;
+    }
+
+    // Save JWT token
+    public function saveJwtToken(int $userId, string $token, string $expiresAt): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO jwt_tokens (user_id, token, expires_at, created_at) 
+            VALUES (:user_id, :token, :expires_at, NOW())'
+        );
+        $stmt->execute(['user_id' => $userId, 'token' => $token, 'expires_at' => $expiresAt]);
+    }
+
+    // Log login/registration attempt
+    public function logAttempt(?int $userId, string $ip, int $success): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO login_attempts (user_id, ip_address, success, created_at) 
+            VALUES (:user_id, :ip_address, :success, NOW())'
+        );
+        $stmt->execute(['user_id' => $userId, 'ip_address' => $ip, 'success' => $success]);
     }
 }

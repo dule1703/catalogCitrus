@@ -1,6 +1,7 @@
 <?php
-use App\Middleware\AuthMiddleware;
-use App\Middleware\LoggingMiddleware;
+use App\Middlewares\GuestMiddleware;
+use App\Middlewares\LoggingMiddleware;
+use App\Middlewares\AuthMiddleware; 
 use Psr\Log\LoggerInterface;
 
 return [
@@ -16,5 +17,8 @@ return [
     },
     LoggingMiddleware::class => function ($container) {
         return new LoggingMiddleware($container->get(LoggerInterface::class));
+    },
+    GuestMiddleware::class => function ($container) {
+        return new GuestMiddleware($container);
     },
 ];
