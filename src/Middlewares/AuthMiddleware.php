@@ -19,7 +19,7 @@ class AuthMiddleware implements MiddlewareInterface {
 
     public function process() {
         // Provera prisustva JWT tokena u cookie-ju
-        if (!isset($_COOKIE['jwt'])) {
+        if (!isset($_COOKIE['jwt_token'])) {
             $this->logger->warning('JWT token nije prisutan: ' . $_SERVER['REQUEST_URI']);
             header("Location: $this->redirectUrl");
             $isApiRequest = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
@@ -30,7 +30,7 @@ class AuthMiddleware implements MiddlewareInterface {
 
         try {
             // Dekodiranje JWT tokena
-            $token = $_COOKIE['jwt'];
+            $token = $_COOKIE['jwt_token'];
             $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
             
             // Provera validnosti tokena (npr. isteknuće)

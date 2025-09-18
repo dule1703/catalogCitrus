@@ -23,7 +23,7 @@ return [
         ->constructor('name', 'app') // Ime logger-a
         ->constructor('handlers', []) // Podrazumevani niz handler-a
         ->method('pushHandler', \DI\autowire(StreamHandler::class)
-            ->constructor(__DIR__ . '/../../log/app.log', Level::Debug)),
+            ->constructor(__DIR__ . '/../../logs/app.log', Level::Debug)),
 
     // Redis klijent (ako se koristi)
     RedisClient::class => \DI\autowire()

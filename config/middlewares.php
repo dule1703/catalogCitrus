@@ -1,7 +1,9 @@
 <?php
 use App\Middlewares\GuestMiddleware;
 use App\Middlewares\LoggingMiddleware;
-use App\Middlewares\AuthMiddleware; 
+use App\Middlewares\AuthMiddleware;
+use App\Middlewares\JsonInputMiddleware;
+use App\Middlewares\ErrorHandlerMiddleware; 
 use Psr\Log\LoggerInterface;
 
 return [
@@ -20,5 +22,11 @@ return [
     },
     GuestMiddleware::class => function ($container) {
         return new GuestMiddleware($container);
+    },
+    JsonInputMiddleware::class => function ($container) {
+        return new JsonInputMiddleware();
+    },
+    ErrorHandlerMiddleware::class => function ($container) { // Dodaj ovo
+        return new ErrorHandlerMiddleware($container->get(LoggerInterface::class));
     },
 ];

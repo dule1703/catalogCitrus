@@ -46,7 +46,7 @@ $requiredEnvVars = [
     'DB_HOST',
     'DB_NAME',
     'DB_USER',
-    'DB_PASS',
+    // 'DB_PASS',
     'REDIS_HOST',
     'MAIL_HOST',
     'MAIL_PORT',
@@ -74,7 +74,7 @@ if (($_ENV['APP_ENV'] ?? 'local') === 'production') {
 
 $builder->addDefinitions(__DIR__ . '/config/dependencies.php');
 $builder->useAutowiring(true);
-$container = $builder->build(); // ✅ Sada dodeljujemo stvarnu vrednost — handler će je “videti” zahvaljujući `use (&$container)`
+$container = $builder->build(); 
 
 // Učitavanje repozitorijuma, servisa, middleware-a
 $repositories = require __DIR__ . '/config/repositories.php';
@@ -92,7 +92,7 @@ foreach ($middlewares as $key => $factory) {
     $container->set($key, $factory);
 }
 
-// ✅ Shutdown handler — koristi kontejner
+// ✅ Shutdown handler 
 register_shutdown_function(function () use ($container) {
     $error = error_get_last();
     if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR, E_CORE_ERROR])) {

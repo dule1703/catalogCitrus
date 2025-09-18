@@ -4,14 +4,12 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 use FastRoute\Dispatcher;
-use Psr\Log\LoggerInterface;
 
-require_once __DIR__ . '/../bootstrap.php';
+$container = require_once __DIR__ . '/../bootstrap.php'; // Uhvati povratnu vrednost iz bootstrap.php
 
 // Učitavanje ruta
 $routesFile = __DIR__ . '/../config/routes.php';
 if (!file_exists($routesFile)) {
-    $container->get(LoggerInterface::class)->error("Rute nisu pronađene: $routesFile");
     throw new \RuntimeException("Rute nisu pronađene");
 }
 
@@ -32,15 +30,12 @@ if (false !== $pos = strpos($uri, '?')) {
 }
 $uri = rawurldecode($uri);
 
-
 $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
 
 switch ($routeInfo[0]) {
     case Dispatcher::NOT_FOUND:
         http_response_code(404);
         echo '<h1>404 - Stranica nije pronađena</h1>';
-        // header('Location: /');
-        // exit;
         break;
     case Dispatcher::METHOD_NOT_ALLOWED:
         http_response_code(405);
@@ -51,50 +46,55 @@ switch ($routeInfo[0]) {
         $handler = $routeInfo[1];
         $vars = $routeInfo[2];
 
-        try {
-            // Obrada middleware-a
-            if (is_array($handler) && isset($handler['middleware'])) {
-                foreach ($handler['middleware'] as $middleware) {
-                    $middlewareInstance = $container->get($middleware);
-                    $response = $middlewareInstance->process();
-                    if ($response !== null) {
-                        header('Content-Type: application/json');
-                        echo is_array($response) ? json_encode($response) : $response;
-                        exit;
+        // Inicijalizuj osnovni request
+        $request = [];
+
+        // Kreiraj lanac middleware-a
+        if (is_array($handler) && isset($handler['middleware'])) {
+            $middlewareStack = array_reverse($handler['middleware']); // Obrni za pravilni redosled
+            $next = function ($request) use ($handler, $vars, $container) {
+                if (is_array($handler) && isset($handler['handler']) && is_array($handler['handler']) && count($handler['handler']) === 2) {
+                    [$controllerClass, $method] = $handler['handler'];
+                    $controller = $container->get($controllerClass);
+                    if (method_exists($controller, $method)) {
+                        $result = call_user_func_array([$controller, $method], [$request, $vars]);
+                        return is_array($result) ? $result : ['body' => $result];
+                    } else {
+                        throw new \RuntimeException("Metoda {$method} ne postoji u {$controllerClass}");
                     }
-                }
-                $handler = $handler['handler'];
-            }
-
-            // Pretpostavka: $handler je [$controllerClass, $method]
-            if (is_array($handler) && count($handler) === 2) {
-                [$controllerClass, $method] = $handler;
-
-                // Inicijalizacija kontrolera
-                $controller = $container->get($controllerClass);
-
-                // Pozivanje metode sa varijablama
-                if (method_exists($controller, $method)) {
-                    call_user_func_array([$controller, $method], [$vars]);
                 } else {
-                    throw new \RuntimeException("Metoda {$method} ne postoji u {$controllerClass}");
+                    throw new \RuntimeException("Nevažeći handler format");
                 }
-            } else {
-                throw new \RuntimeException("Nevažeći handler format");
+            };
+
+            foreach ($middlewareStack as $middlewareClass) {
+                $middleware = $container->get($middlewareClass);
+                if ($middleware instanceof \App\Interfaces\RequestMiddlewareInterface) {
+                    $current = $next;
+                    $next = function ($request) use ($middleware, $current) {
+                        return $middleware->process($request, $current);
+                    };
+                } else {
+                    $current = $next;
+                    $next = function ($request) use ($middleware, $current) {
+                        $middleware->process();
+                        return $current($request);
+                    };
+                }
             }
-        } catch (\Throwable $e) {
-            $container->get(LoggerInterface::class)->error(
-                "Greška na serveru: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}"
-            );
-            http_response_code(500);
-            header('Content-Type: application/json');
-            //echo json_encode(['error' => 'Greška na serveru']);
-            echo '<pre>';
-echo "Greška: " . $e->getMessage() . "\n";
-echo "Fajl: " . $e->getFile() . "\n";
-echo "Linija: " . $e->getLine() . "\n";
-//echo "Stack trace:\n" . $e->getTraceAsString();
-echo '</pre>';
+
+            $response = $next($request);
+
+            // Obrada odgovora
+            if (is_array($response)) {
+                http_response_code($response['status'] ?? 200);
+                foreach ($response['headers'] ?? [] as $key => $value) {
+                    header("$key: $value");
+                }
+                echo $response['body'] ?? '';
+            }
+        } else {
+            throw new \RuntimeException("Nevažeći handler format");
         }
         break;
 }
