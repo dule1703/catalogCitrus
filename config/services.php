@@ -1,16 +1,21 @@
 <?php
-use App\Repositories\UserRepository;
+
 use App\Services\UserService;
+use Psr\Log\LoggerInterface;
 use App\Services\JwtService;
 
 return [
-    UserService::class => function($container) {
-        return new UserService($container, $container->get(UserRepository::class));
-    },
-    JwtService::class => function($container) {
-        if (!isset($_ENV['JWT_SECRET']) || empty($_ENV['JWT_SECRET'])) {
-            throw new \RuntimeException('JWT_SECRET nije definisan u .env fajlu.');
-        }
-        return new JwtService($_ENV['JWT_SECRET']);
-    }
+    // JWT postavke kao zavisnosti
+    'jwt.secret' => fn() => $_ENV['JWT_SECRET'] ?? throw new \RuntimeException('JWT_SECRET nije definisan u .env fajlu.'),
+    'jwt.issuer' => fn() => $_ENV['APP_URL'] ?? 'yourapp.com',
+    'jwt.expiry' => fn() => (int)($_ENV['JWT_EXPIRY'] ?? 3600),
+
+     // JwtService — 
+    JwtService::class => \DI\autowire()
+        ->constructorParameter('secret', \DI\get('jwt.secret'))
+        ->constructorParameter('issuer', \DI\get('jwt.issuer'))
+        ->constructorParameter('expiry', \DI\get('jwt.expiry')),
+
+    // ✅ ISPRAVKA: UserService — autowiring će automatski injektovati zavisnosti na osnovu type hinting-a
+    UserService::class => \DI\autowire(),
 ];

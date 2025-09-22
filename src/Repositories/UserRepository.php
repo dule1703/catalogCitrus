@@ -1,15 +1,14 @@
 <?php
 namespace App\Repositories;
 
-use PDO;
 use PDOException;
 use App\Database;
 
 class UserRepository
 {
-    private $db;
+    private Database $db;
 
-    public function __construct($db) 
+    public function __construct(Database $db) 
     {
         $this->db = $db;
     }

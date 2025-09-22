@@ -9,13 +9,11 @@ class Database
 {
     private PDO $conn;
 
-     public function __construct(string $host, string $dbname, string $user, string $pass)
+    public function __construct(string $host, string $dbname, string $user, string $pass)
     {
         try {
             $this->conn = new PDO(
-                "mysql:host=$host;dbname=$dbname",
-                $user,
-                $pass,
+                "mysql:host=$host;dbname=$dbname", $user, $pass,
                 [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

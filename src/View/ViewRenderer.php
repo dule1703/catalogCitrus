@@ -21,9 +21,6 @@ class ViewRenderer
      */
     public function render(string $view, array $data = [], string $layout = 'layouts/main.php'): void
     {
-        //Normalize path
-    // echo "Original base path: " . $this->basePath . "<br>";
-    // echo "Original view: " . $view . "<br>";
 
    // Normalize separators in view and basePath
     $this->basePath = str_replace('/', DIRECTORY_SEPARATOR, $this->basePath);
@@ -35,11 +32,7 @@ class ViewRenderer
     $layout = str_replace('/', DIRECTORY_SEPARATOR, $layout);
     $layout = str_replace('\\', DIRECTORY_SEPARATOR, $layout);
 
-    // echo "Normalized base path: " . $this->basePath . "<br>";
-    // echo "Normalized view: " . $view . "<br>";
-
     $viewPath = $this->basePath . $view;
-    // echo "Final view path: " . $viewPath . "<br>";
 
     if (!file_exists($viewPath)) {
         die("FATAL: View file not found at: " . $viewPath);
