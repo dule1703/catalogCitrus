@@ -16,6 +16,6 @@ return [
         ->constructorParameter('issuer', \DI\get('jwt.issuer'))
         ->constructorParameter('expiry', \DI\get('jwt.expiry')),
 
-    // ✅ ISPRAVKA: UserService — autowiring će automatski injektovati zavisnosti na osnovu type hinting-a
+    // UserService — autowiring će automatski injektovati zavisnosti
     UserService::class => \DI\autowire(),
 ];

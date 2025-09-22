@@ -1,32 +1,66 @@
 <?php
+
 namespace App;
 
 use PDO;
 use PDOException;
 use PDOStatement;
+use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 
 class Database
 {
     private PDO $conn;
+    private ?LoggerInterface $logger = null;
 
-    public function __construct(string $host, string $dbname, string $user, string $pass)
-    {
+    /**
+     * Konstruktor — prima PDO instancu (injektovanu preko DI) ili kreira novu ako nije data.
+     */
+    public function __construct(
+        ?PDO $conn = null,
+        string $driver = 'mysql',
+        string $host = '127.0.0.1',
+        string $dbname = '',
+        string $user = '',
+        string $pass = '',
+        string $charset = 'utf8mb4'
+    ) {
+        if ($conn) {
+            $this->conn = $conn;
+            return;
+        }
+
+        $dsn = match ($driver) {
+            'mysql' => "mysql:host=$host;dbname=$dbname;charset=$charset",
+            'pgsql' => "pgsql:host=$host;dbname=$dbname",
+            'sqlite' => "sqlite:" . ($dbname ?: ':memory:'),
+            default => throw new InvalidArgumentException("Unsupported database driver: $driver")
+        };
+
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_STRINGIFY_FETCHES => false, // Važno za integer/boolean kolone
+        ];
+
         try {
-            $this->conn = new PDO(
-                "mysql:host=$host;dbname=$dbname", $user, $pass,
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false //better security
-                ]
-            );
+            $this->conn = new PDO($dsn, $user, $pass, $options);
         } catch (PDOException $e) {
-            throw new PDOException("Connection failed: " . $e->getMessage());
+            throw new PDOException("Database connection failed: " . $e->getMessage(), (int)$e->getCode(), $e);
         }
     }
 
     /**
-     * Returns the PDO connection instance.
+     * Postavlja logger (opciono, za debug/produkciju).
+     */
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
+    }
+
+    /**
+     * Vraća PDO konekciju — korisno za specijalne slučajeve.
      */
     public function getConnection(): PDO
     {
@@ -34,7 +68,7 @@ class Database
     }
 
     /**
-     * Prepares a SQL query.
+     * Priprema SQL upit — korisno za višestruko korišćenje.
      */
     public function prepare(string $sql): PDOStatement
     {
@@ -42,42 +76,96 @@ class Database
     }
 
     /**
-     * Executes a prepared query with parameters and returns results.
+     * Izvršava SELECT upit i vraća sve redove.
      */
     public function query(string $sql, array $params = []): array
     {
-        try {
-            $stmt = $this->conn->prepare($sql);
-            $stmt->execute($params);
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            throw new PDOException("Query failed: " . $e->getMessage());
-        }
+        return $this->executeQuery($sql, $params, 'fetchAll');
     }
 
     /**
-     * Executes a query and returns the first row.
+     * Izvršava SELECT upit i vraća prvi red.
      */
     public function queryOne(string $sql, array $params = []): ?array
     {
+        return $this->executeQuery($sql, $params, 'fetch');
+    }
+
+    /**
+     * Izvršava INSERT/UPDATE/DELETE i vraća broj zahvaćenih redova.
+     */
+    public function execute(string $sql, array $params = []): int
+    {
+        $this->logQuery($sql, $params);
+
         try {
             $stmt = $this->conn->prepare($sql);
             $stmt->execute($params);
-            return $stmt->fetch();
+            return $stmt->rowCount();
         } catch (PDOException $e) {
-            throw new PDOException("Query failed: " . $e->getMessage());
+            throw new PDOException("Query execution failed: " . $e->getMessage(), (int)$e->getCode(), $e);
         }
     }
 
     /**
-     * Returns the ID of the last inserted row.
+     * Vraća ID poslednjeg unetog reda.
+     * @return int|string
      */
-    public function lastInsertId(): string
+    public function lastInsertId(): int|string
     {
+        return $this->conn->lastInsertId();
+    }
+
+    /**
+     * Pokreće transakciju.
+     */
+    public function beginTransaction(): void
+    {
+        $this->conn->beginTransaction();
+    }
+
+    /**
+     * Potvrđuje transakciju.
+     */
+    public function commit(): void
+    {
+        $this->conn->commit();
+    }
+
+    /**
+     * Poništava transakciju.
+     */
+    public function rollback(): void
+    {
+        $this->conn->rollback();
+    }
+
+    /**
+     * Interna metoda za izvršavanje SELECT upita — DRY.
+     */
+    private function executeQuery(string $sql, array $params, string $fetchMethod): mixed
+    {
+        $this->logQuery($sql, $params);
+
         try {
-            return $this->conn->lastInsertId();
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->{$fetchMethod}();
         } catch (PDOException $e) {
-            throw new PDOException("Failed to get last insert ID: " . $e->getMessage());
+            throw new PDOException("Query failed: " . $e->getMessage(), (int)$e->getCode(), $e);
+        }
+    }
+
+    /**
+     * Loguje upit ako je logger podešen.
+     */
+    private function logQuery(string $sql, array $params): void
+    {
+        if ($this->logger) {
+            $this->logger->debug("Executing SQL: {sql}", [
+                'sql' => $sql,
+                'params' => $params
+            ]);
         }
     }
 }
