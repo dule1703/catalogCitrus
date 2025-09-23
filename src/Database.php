@@ -161,7 +161,7 @@ class Database
      */
     private function logQuery(string $sql, array $params): void
     {
-        if ($this->logger) {
+        if ($this->logger !== null) {
             $this->logger->debug("Executing SQL: {sql}", [
                 'sql' => $sql,
                 'params' => $params
