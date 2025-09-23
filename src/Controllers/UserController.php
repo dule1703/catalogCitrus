@@ -5,7 +5,6 @@ namespace App\Controllers;
 use Psr\Container\ContainerInterface;
 use App\Services\UserService;
 use App\View\ViewRenderer;
-use Exception;
 use App\Utilities\ApiResponse;
 use Psr\Log\LoggerInterface;
 
