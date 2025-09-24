@@ -19,7 +19,7 @@ class Database
     public function __construct(
         ?PDO $conn = null,
         string $driver = 'mysql',
-        string $host = '127.0.0.1',
+        string $host = '',
         string $dbname = '',
         string $user = '',
         string $pass = '',
