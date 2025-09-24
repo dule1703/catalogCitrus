@@ -2,7 +2,6 @@
 
 namespace App\Controllers;
 
-use Psr\Container\ContainerInterface;
 use App\Services\UserService;
 use App\View\ViewRenderer;
 use App\Utilities\ApiResponse;
@@ -10,136 +9,102 @@ use Psr\Log\LoggerInterface;
 
 class UserController
 {
-    private $container;
-    private $userService;
-    private $viewRenderer;
-    private $logger;
+    private UserService $userService;
+    private ViewRenderer $viewRenderer;
+    private LoggerInterface $logger;
 
-    public function __construct(ContainerInterface $container) {
-        $this->container = $container;
-        $this->logger = $container->get(LoggerInterface::class);
-        
-        try {
-            $this->userService = $container->get(UserService::class);
-            $this->viewRenderer = $container->get(ViewRenderer::class);
-            $this->logger->info("UserController initialized successfully");
-        } catch (\Throwable $e) {
-            $this->logger->error("Failed to initialize UserController dependencies: " . $e->getMessage());
-            throw $e;
-        }
+    public function __construct(
+        UserService $userService,
+        ViewRenderer $viewRenderer,
+        LoggerInterface $logger
+    ) {
+        $this->userService = $userService;
+        $this->viewRenderer = $viewRenderer;
+        $this->logger = $logger;
+        $this->logger->info("UserController initialized successfully");
     }
 
-    // ✅ MODIFIKOVANO — vraća array, ne ispisuje odmah
     public function showLoginForm($request, $vars) {
         try {
             $this->logger->info("showLoginForm called");
-            
             $content = $this->viewRenderer->render('user/login.php');
-            
-            $this->logger->info("showLoginForm completed successfully");
             return [
                 'status' => 200,
                 'headers' => ['Content-Type' => 'text/html'],
                 'body' => $content
             ];
         } catch (\Throwable $e) {
-            $this->logger->error("showLoginForm failed: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            
+            $this->logger->error("showLoginForm failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return [
                 'status' => 500,
                 'headers' => ['Content-Type' => 'text/html'],
-                'body' => '<h1>Error loading login form</h1><p>' . $e->getMessage() . '</p>'
+                'body' => '<h1>Error loading login form</h1><p>' . htmlspecialchars($e->getMessage()) . '</p>'
             ];
         }
     }
 
-    // ✅ MODIFIKOVANO — vraća array, ne ispisuje odmah
     public function showRegisterForm($request, $vars) {
         try {
             $this->logger->info("showRegisterForm called");
-            
             $content = $this->viewRenderer->render('user/create.php');
-            
-            $this->logger->info("showRegisterForm completed successfully");
             return [
                 'status' => 200,
                 'headers' => ['Content-Type' => 'text/html'],
                 'body' => $content
             ];
         } catch (\Throwable $e) {
-            $this->logger->error("showRegisterForm failed: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            
+            $this->logger->error("showRegisterForm failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return [
                 'status' => 500,
                 'headers' => ['Content-Type' => 'text/html'],
-                'body' => '<h1>Error loading register form</h1><p>' . $e->getMessage() . '</p>'
+                'body' => '<h1>Error loading register form</h1><p>' . htmlspecialchars($e->getMessage()) . '</p>'
             ];
         }
     }
 
-    // ✅ MODIFIKOVANO — vraća array, ne ispisuje odmah
     public function showSuccess($request, $vars) {
         try {
             $this->logger->info("showSuccess called");
-            
             $content = $this->viewRenderer->render('user/success.php');
-            
-            $this->logger->info("showSuccess completed successfully");
             return [
                 'status' => 200,
                 'headers' => ['Content-Type' => 'text/html'],
                 'body' => $content
             ];
         } catch (\Throwable $e) {
-            $this->logger->error("showSuccess failed: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            
+            $this->logger->error("showSuccess failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return [
                 'status' => 500,
                 'headers' => ['Content-Type' => 'text/html'],
-                'body' => '<h1>Error loading success page</h1><p>' . $e->getMessage() . '</p>'
+                'body' => '<h1>Error loading success page</h1><p>' . htmlspecialchars($e->getMessage()) . '</p>'
             ];
         }
     }
 
-    // Handle registration POST
     public function register($request, $vars) {
         try {
             $this->logger->info("register called");
-            
-            // ✅ Properly get input data
             $input = $this->getRequestData();
             $this->logger->info("Input data received: " . json_encode(array_keys($input)));
-            
             $result = $this->userService->registerUser($input);
-            $this->logger->info("User registration successful");
-            
             return ApiResponse::success(['message' => 'Korisnik uspešno registrovan']);
-            
         } catch (\Throwable $e) {
-            $this->logger->error("register failed: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            
+            $this->logger->error("register failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return [
                 'status' => 500,
                 'headers' => ['Content-Type' => 'application/json'],
                 'body' => json_encode([
                     'error' => 'Greška pri registraciji: ' . $e->getMessage(),
-                    'debug' => $_ENV['APP_DEBUG'] ?? false ? $e->getTraceAsString() : null
+                    'debug' => ($_ENV['APP_DEBUG'] ?? false) ? $e->getTraceAsString() : null
                 ])
             ];
         }
     }
-   
+
     public function login($request, $vars) {
         try {
             $this->logger->info("login called");
-            
             $input = $this->getRequestData();
-            $this->logger->info("Login attempt for user: " . ($input['username'] ?? 'unknown'));
-            
             $username = $input['username'] ?? '';
             $password = $input['password'] ?? '';
 
@@ -170,9 +135,7 @@ class UserController
                 ];
             }
         } catch (\Throwable $e) {
-            $this->logger->error("login method failed: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            
+            $this->logger->error("login method failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return [
                 'status' => 500,
                 'headers' => ['Content-Type' => 'application/json'],
@@ -185,7 +148,7 @@ class UserController
     }
 
     /**
-     * ✅ Helper method to get request data from different sources
+     * Helper method to get request data from different sources
      */
     private function getRequestData(): array
     {
@@ -213,11 +176,6 @@ class UserController
             $this->logger->info("Got GET data");
         }
         
-        // Check global $GLOBALS['input'] as used in register method
-        if (empty($input) && isset($GLOBALS['input']) && is_array($GLOBALS['input'])) {
-            $input = $GLOBALS['input'];
-            $this->logger->info("Got GLOBALS input data");
-        }
         
         return $input;
     }
