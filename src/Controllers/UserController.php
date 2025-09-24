@@ -6,12 +6,14 @@ use App\Services\UserService;
 use App\View\ViewRenderer;
 use App\Utilities\ApiResponse;
 use Psr\Log\LoggerInterface;
+use App\Services\JwtService;
 
 class UserController
 {
     private UserService $userService;
     private ViewRenderer $viewRenderer;
     private LoggerInterface $logger;
+    private JwtService $jwtService;
 
     public function __construct(
         UserService $userService,
@@ -101,51 +103,64 @@ class UserController
         }
     }
 
-    public function login($request, $vars) {
-        try {
-            $this->logger->info("login called");
-            $input = $this->getRequestData();
-            $username = $input['username'] ?? '';
-            $password = $input['password'] ?? '';
+public function login($request, $vars)
+{
+    try {
+        $this->logger->info("login called");
+        $input = $this->getRequestData();
+        $username = $input['username'] ?? '';
+        $password = $input['password'] ?? '';
 
-            if (empty($username) || empty($password)) {
-                $this->logger->warning("Login attempt with empty credentials");
-                return [
-                    'status' => 400,
-                    'headers' => ['Content-Type' => 'application/json'],
-                    'body' => json_encode(['error' => 'Korisničko ime i lozinka su obavezni'])
-                ];
-            }
-
-            $user = $this->userService->login($username, $password);
-
-            if ($user) {
-                $this->logger->info("Login successful for user: $username");
-                return [
-                    'status' => 200,
-                    'headers' => ['Content-Type' => 'application/json'],
-                    'body' => json_encode(['success' => true])
-                ];
-            } else {
-                $this->logger->warning("Login failed for user: $username");
-                return [
-                    'status' => 401,
-                    'headers' => ['Content-Type' => 'application/json'],
-                    'body' => json_encode(['error' => 'Pogrešno korisničko ime ili lozinka'])
-                ];
-            }
-        } catch (\Throwable $e) {
-            $this->logger->error("login method failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        if (empty($username) || empty($password)) {
+            $this->logger->warning("Login attempt with empty credentials");
             return [
-                'status' => 500,
+                'status' => 400,
                 'headers' => ['Content-Type' => 'application/json'],
-                'body' => json_encode([
-                    'error' => 'Greška na serveru: ' . $e->getMessage(),
-                    'debug' => ($_ENV['APP_DEBUG'] ?? false) ? $e->getTraceAsString() : null
-                ])
+                'body' => json_encode(['error' => 'Korisničko ime i lozinka su obavezni'])
             ];
         }
+
+        $user = $this->userService->login($username, $password);
+        if (!$user) {
+            $this->logger->warning("Login failed for user: $username");
+            return [
+                'status' => 401,
+                'headers' => ['Content-Type' => 'application/json'],
+                'body' => json_encode(['error' => 'Pogrešno korisničko ime ili lozinka'])
+            ];
+        }
+
+        // ✅ Generiši JWT token
+        $jwtToken = $this->jwtService->generate($user['id']);
+
+        // ✅ Postavi kolačić
+        setcookie('jwt_token', $jwtToken, [
+            'expires' => time() + $this->jwtService->getExpiry(),
+            'path' => '/',
+            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+            'httponly' => true,
+            'samesite' => 'Strict'
+        ]);
+
+        $this->logger->info("Login successful for user: $username");
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode(['success' => true])
+        ];
+
+    } catch (\Throwable $e) {
+        $this->logger->error("login method failed: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return [
+            'status' => 500,
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'error' => 'Greška na serveru: ' . $e->getMessage(),
+                'debug' => ($_ENV['APP_DEBUG'] ?? false) ? $e->getTraceAsString() : null
+            ])
+        ];
     }
+}
 
     /**
      * Helper method to get request data from different sources
