@@ -1,22 +1,27 @@
 <?php
 namespace App\Middlewares;
 
-use App\Interfaces\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
 
-class LoggingMiddleware implements MiddlewareInterface {
-    private $logger;
+class LoggingMiddleware
+{
+    private LoggerInterface $logger;
 
-    public function __construct(LoggerInterface $logger) {
+    public function __construct(LoggerInterface $logger)
+    {
         $this->logger = $logger;
     }
 
-    public function process() {
-        $this->logger->info(sprintf(
-            'Zahtev: %s %s',
-            $_SERVER['REQUEST_METHOD'],
-            $_SERVER['REQUEST_URI']
-        ));
-        return null;
+    public function process($request, callable $next)
+    {
+        $this->logger->info('HTTP zahtev primljen', [
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN',
+            'uri' => $_SERVER['REQUEST_URI'] ?? '/',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            'request_id' => $_SERVER['REQUEST_ID'] ?? 'unknown'
+        ]);
+
+        return $next($request);
     }
 }

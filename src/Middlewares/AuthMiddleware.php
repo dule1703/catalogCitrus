@@ -6,49 +6,66 @@ use Psr\Log\LoggerInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-class AuthMiddleware implements MiddlewareInterface {
+class AuthMiddleware implements MiddlewareInterface
+{
     private $logger;
     private $jwtSecret;
     private $redirectUrl;
 
-    public function __construct(LoggerInterface $logger, string $jwtSecret, string $redirectUrl = '/login') {
+    public function __construct(LoggerInterface $logger, string $jwtSecret, string $redirectUrl = '/login')
+    {
         $this->logger = $logger;
         $this->jwtSecret = $jwtSecret;
         $this->redirectUrl = $redirectUrl;
     }
 
-    public function process() {
-        // Provera prisustva JWT tokena u cookie-ju
+    public function process()
+    {
+        $isJson = $this->isJsonRequest();
+
         if (!isset($_COOKIE['jwt_token'])) {
-            $this->logger->warning('JWT token nije prisutan: ' . $_SERVER['REQUEST_URI']);
-            header("Location: $this->redirectUrl");
-            $isApiRequest = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
-            return $isApiRequest
-                ? ['error' => 'Neovlašćeni pristup', 'redirect' => $this->redirectUrl]
-                : "Redirekcija na $this->redirectUrl";
+            $this->logger->warning('JWT token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
+            return $this->createUnauthorizedResponse($isJson);
         }
 
         try {
-            // Dekodiranje JWT tokena
             $token = $_COOKIE['jwt_token'];
             $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
-            
-            // Provera validnosti tokena (npr. isteknuće)
+
             if ($decoded->exp < time()) {
-                $this->logger->warning('JWT token je istekao: ' . $_SERVER['REQUEST_URI']);
-                header("Location: $this->redirectUrl");
-                return ['error' => 'JWT token je istekao', 'redirect' => $this->redirectUrl];
+                $this->logger->warning('JWT token je istekao');
+                return $this->createUnauthorizedResponse($isJson);
             }
 
-            // Token je validan, nastavi dalje
-            return null;
+            return null; // OK
         } catch (\Exception $e) {
             $this->logger->error('Greška pri verifikaciji JWT tokena: ' . $e->getMessage());
-            header("Location: $this->redirectUrl");
-            $isApiRequest = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
-            return $isApiRequest
-                ? ['error' => 'Nevalidan JWT token', 'redirect' => $this->redirectUrl]
-                : "Redirekcija na $this->redirectUrl";
+            return $this->createUnauthorizedResponse($isJson);
+        }
+    }
+
+    private function isJsonRequest(): bool
+    {
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        return str_contains($accept, 'application/json') ||
+               str_contains($contentType, 'application/json');
+    }
+
+    private function createUnauthorizedResponse(bool $isJson): array
+    {
+        if ($isJson) {
+            return [
+                'status' => 401,
+                'headers' => ['Content-Type' => 'application/json'],
+                'body' => json_encode(['error' => 'Neovlašćeni pristup'])
+            ];
+        } else {
+            return [
+                'status' => 302,
+                'headers' => ['Location' => $this->redirectUrl],
+                'body' => ''
+            ];
         }
     }
 }
