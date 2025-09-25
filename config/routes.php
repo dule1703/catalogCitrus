@@ -6,7 +6,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class, 
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\GuestMiddleware::class
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class 
         ],
         'handler' => [\App\Controllers\UserController::class, 'showLoginForm']
     ]);
@@ -15,7 +16,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\GuestMiddleware::class
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'login']
     ]);
@@ -24,7 +26,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\GuestMiddleware::class
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class 
         ],
         'handler' => [\App\Controllers\UserController::class, 'showForgotPassword']
     ]);
@@ -33,7 +36,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\GuestMiddleware::class
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class 
         ],
         'handler' => [\App\Controllers\UserController::class, 'showRegisterForm']
     ]);
@@ -43,7 +47,8 @@ return function (FastRoute\RouteCollector $r) {
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\GuestMiddleware::class,
-            \App\Middlewares\JsonInputMiddleware::class
+            \App\Middlewares\JsonInputMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'register']
     ]);    
@@ -52,7 +57,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\GuestMiddleware::class
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class 
         ],
         'handler' => [\App\Controllers\UserController::class, 'showSuccess']
     ]);
@@ -61,7 +67,8 @@ return function (FastRoute\RouteCollector $r) {
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
-            \App\Middlewares\AuthMiddleware::class
+            \App\Middlewares\AuthMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class 
         ],
         'handler' => [\App\Controllers\UserController::class, 'index']
     ]);

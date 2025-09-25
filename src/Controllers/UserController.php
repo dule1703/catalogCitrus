@@ -7,29 +7,40 @@ use App\View\ViewRenderer;
 use App\Utilities\ApiResponse;
 use Psr\Log\LoggerInterface;
 use App\Services\JwtService;
+use App\Services\CsrfService;
+
 
 class UserController
 {
     private UserService $userService;
     private ViewRenderer $viewRenderer;
     private LoggerInterface $logger;
-    private JwtService $jwtService;
+    private JwtService $jwtService;    
+    private CsrfService $csrfService;
+    
 
     public function __construct(
         UserService $userService,
         ViewRenderer $viewRenderer,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        JwtService $jwtService,
+        CsrfService $csrfService
     ) {
         $this->userService = $userService;
         $this->viewRenderer = $viewRenderer;
         $this->logger = $logger;
+        $this->jwtService = $jwtService;   
+        $this->csrfService = $csrfService; 
         $this->logger->info("UserController initialized successfully");
     }
 
     public function showLoginForm($request, $vars) {
         try {
             $this->logger->info("showLoginForm called");
-            $content = $this->viewRenderer->render('user/login.php');
+            // ✅ CSRF token se kreira u CsrfMiddleware-u
+            $content = $this->viewRenderer->render('user/login.php', [
+                'csrfService' => $this->csrfService
+            ]);
             return [
                 'status' => 200,
                 'headers' => ['Content-Type' => 'text/html'],
@@ -48,7 +59,10 @@ class UserController
     public function showRegisterForm($request, $vars) {
         try {
             $this->logger->info("showRegisterForm called");
-            $content = $this->viewRenderer->render('user/create.php');
+            // ✅ CSRF token se kreira u CsrfMiddleware-u
+            $content = $this->viewRenderer->render('user/create.php', [
+                'csrfService' => $this->csrfService
+            ]);
             return [
                 'status' => 200,
                 'headers' => ['Content-Type' => 'text/html'],
@@ -63,7 +77,6 @@ class UserController
             ];
         }
     }
-
     public function showSuccess($request, $vars) {
         try {
             $this->logger->info("showSuccess called");

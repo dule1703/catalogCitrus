@@ -29,16 +29,30 @@ class JwtService
 
     public function generate(int $userId): string
     {
+        // Generiši CSRF token
+        $csrfToken = bin2hex(random_bytes(32));
+        
         $payload = [
             'iss' => $this->issuer,
             'sub' => $userId,
             'iat' => time(),
             'exp' => time() + $this->expiry
         ];
-        return JWT::encode($payload, $this->secret, 'HS256');
+        
+        $jwtToken = JWT::encode($payload, $this->secret, 'HS256');
+        
+        // Postavi CSRF token u poseban kolačić (BEZ HttpOnly!)
+        setcookie('csrf_token', $csrfToken, [
+            'expires' => time() + $this->expiry,
+            'path' => '/',
+            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+            'httponly' => false, // ← Moramo da pristupimo iz JS-a
+            'samesite' => 'Strict'
+        ]);
+        
+        return $jwtToken;
     }
 
-    // Dodajemo getter za expiry — potreban za setcookie()
     public function getExpiry(): int
     {
         return $this->expiry;
