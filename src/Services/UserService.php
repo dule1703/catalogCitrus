@@ -10,25 +10,13 @@ use Psr\Log\LoggerInterface;
 class UserService
 {
     private UserRepository $userRepository;
-    private string $jwtSecret;
-    private string $jwtIssuer;
-    private int $jwtExpiry;
     private LoggerInterface $logger;
 
     public function __construct(
         UserRepository $userRepository,
-        string $jwtSecret,
-        string $jwtIssuer,
-        int $jwtExpiry,
         LoggerInterface $logger
     ) {
-        if (empty($jwtSecret)) {
-            throw new RuntimeException('JWT_SECRET nije definisan.');
-        }
         $this->userRepository = $userRepository;
-        $this->jwtSecret = $jwtSecret;
-        $this->jwtIssuer = $jwtIssuer;
-        $this->jwtExpiry = $jwtExpiry;
         $this->logger = $logger;
     }
 
@@ -79,11 +67,11 @@ class UserService
      * 
      * @param string $username
      * @param string $password
-     * @return array|null Vraća korisničke podatke ako je uspešno, inače null
+     * @return array|null Vraća korisničke podatke i token ako je uspešno, inače null
      */
     public function login(string $username, string $password): ?array
     {
-        // 1. Preuzmi korisnika iz baze (pretpostavimo da UserRepository ima metodu findByUsername)
+        // 1. Preuzmi korisnika iz baze
         $user = $this->userRepository->findByUsername($username);
         if (!$user) {
             $this->logFailedAttempt(null, $username);
@@ -99,9 +87,10 @@ class UserService
         // 3. Loguj uspešan pokušaj
         $this->userRepository->logAttempt($user['id'], $this->getClientIp(), 1);
 
-        // 4. Vrati korisničke podatke (bez lozinke!)
+        // 4. Ukloni lozinku iz odgovora
         unset($user['password']);
-        return $user;
+
+        return $user;  // Trenutno vraća samo korisničke podatke (token će se dodati u kontroleru)
     }
 
     /**

@@ -3,19 +3,18 @@ namespace App\Middlewares;
 
 use App\Interfaces\MiddlewareInterface;
 use Psr\Log\LoggerInterface;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
+use App\Services\JwtService;
 
 class AuthMiddleware implements MiddlewareInterface
 {
     private $logger;
-    private $jwtSecret;
+    private $jwtService;
     private $redirectUrl;
 
-    public function __construct(LoggerInterface $logger, string $jwtSecret, string $redirectUrl = '/login')
+    public function __construct(LoggerInterface $logger, JwtService $jwtService, string $redirectUrl = '/login')
     {
         $this->logger = $logger;
-        $this->jwtSecret = $jwtSecret;
+        $this->jwtService = $jwtService;
         $this->redirectUrl = $redirectUrl;
     }
 
@@ -23,23 +22,26 @@ class AuthMiddleware implements MiddlewareInterface
     {
         $isJson = $this->isJsonRequest();
 
-        if (!isset($_COOKIE['jwt_token'])) {
-            $this->logger->warning('JWT token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
+        if (!isset($_COOKIE['access_token'])) {
+            $this->logger->warning('Access token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
             return $this->createUnauthorizedResponse($isJson);
         }
 
         try {
-            $token = $_COOKIE['jwt_token'];
-            $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
+            $token = $_COOKIE['access_token'];
+            if (!$this->jwtService->validate($token)) {
+                $this->logger->warning('Access token nije validan');
+                return $this->createUnauthorizedResponse($isJson);
+            }
 
-            if ($decoded->exp < time()) {
-                $this->logger->warning('JWT token je istekao');
+            if ($this->jwtService->isRevoked($token)) {
+                $this->logger->warning('Access token je opozvan');
                 return $this->createUnauthorizedResponse($isJson);
             }
 
             return null; // OK
         } catch (\Exception $e) {
-            $this->logger->error('Greška pri verifikaciji JWT tokena: ' . $e->getMessage());
+            $this->logger->error('Greška pri verifikaciji access tokena: ' . $e->getMessage());
             return $this->createUnauthorizedResponse($isJson);
         }
     }

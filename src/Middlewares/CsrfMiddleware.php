@@ -27,14 +27,14 @@ class CsrfMiddleware implements RequestMiddlewareInterface
         if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'])) {
             $providedToken = $_POST['_csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
             $storedToken = $_COOKIE['csrf_token'] ?? null;
-$this->logger->info('CSRF detalji', [
-            'providedToken' => $providedToken,
-            'storedToken' => $storedToken,
-            'headers' => getallheaders(),
-            'post_data' => $_POST,
-            'raw_input' => file_get_contents('php://input'),
-            'uri' => $_SERVER['REQUEST_URI'] ?? ''
-        ]);
+// $this->logger->info('CSRF detalji', [
+//             'providedToken' => $providedToken,
+//             'storedToken' => $storedToken,
+//             'headers' => getallheaders(),
+//             'post_data' => $_POST,
+//             'raw_input' => file_get_contents('php://input'),
+//             'uri' => $_SERVER['REQUEST_URI'] ?? ''
+//         ]);
 
             if (!$providedToken || !$storedToken || !hash_equals($providedToken, $storedToken)) {
                 $this->logger->warning('CSRF validacija nije uspela', [
