@@ -41,10 +41,6 @@ class UserRepository
         }
     }
 
-    /**
-     * Pronađi korisnika po korisničkom imenu.
-     * @return array|null
-     */
     public function findByUsername(string $username): ?array
     {
         return $this->db->queryOne(
@@ -69,9 +65,6 @@ class UserRepository
         return $this->db->execute($sql, $params) === 1;
     }
 
-    /**
-     * Ažurira hash lozinke za korisnika.
-     */
     public function updatePassword(int $userId, string $newHash): bool
     {
         $sql = 'UPDATE users SET password = :password, updated_at = NOW() WHERE id = :id';
