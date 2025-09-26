@@ -8,6 +8,7 @@ use App\Utilities\ApiResponse;
 use Psr\Log\LoggerInterface;
 use App\Services\JwtService;
 use App\Services\CsrfService;
+use App\Services\InputValidator;
 
 class UserController
 {
@@ -140,10 +141,10 @@ class UserController
                 ];
             }
 
-            // ✅ Generiši access i refresh token
+            // Generiši access i refresh token
             [$accessToken, $refreshToken] = $this->jwtService->issueTokens($user['id']);
 
-            // ✅ Postavi kolačiće
+            // Postavi kolačiće
             $this->jwtService->setAuthCookies($accessToken, $refreshToken);
 
             $this->logger->info("Login successful for user: $username");
@@ -194,7 +195,17 @@ class UserController
             $input = $_GET;
             $this->logger->info("Got GET data");
         }
-        
-        return $input;
+
+        // Osnovna sanitizacija
+        $sanitized = [];
+        foreach ($input as $key => $value) {
+            if (is_string($value)) {
+                $sanitized[$key] = InputValidator::sanitizeString($value);
+            } else {
+                $sanitized[$key] = $value; 
+            }
+        }
+
+        return $sanitized;
     }
 }

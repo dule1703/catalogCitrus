@@ -39,7 +39,7 @@ class AuthMiddleware implements MiddlewareInterface
                 return $this->createUnauthorizedResponse($isJson);
             }
 
-            return null; // OK
+            return null; 
         } catch (\Exception $e) {
             $this->logger->error('Greška pri verifikaciji access tokena: ' . $e->getMessage());
             return $this->createUnauthorizedResponse($isJson);
