@@ -68,4 +68,14 @@ class UserRepository
         $params = ['user_id' => $userId, 'ip_address' => $ip, 'success' => $success];
         return $this->db->execute($sql, $params) === 1;
     }
+
+    /**
+     * Ažurira hash lozinke za korisnika.
+     */
+    public function updatePassword(int $userId, string $newHash): bool
+    {
+        $sql = 'UPDATE users SET password = :password, updated_at = NOW() WHERE id = :id';
+        $params = ['password' => $newHash, 'id' => $userId];
+        return $this->db->execute($sql, $params) === 1;
+    }
 }
