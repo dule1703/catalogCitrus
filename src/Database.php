@@ -30,21 +30,22 @@ class Database
             return;
         }
 
-        $dsn = match ($driver) {
-            'mysql' => "mysql:host=$host;dbname=$dbname;charset=$charset",
-            'pgsql' => "pgsql:host=$host;dbname=$dbname",
-            'sqlite' => "sqlite:" . ($dbname ?: ':memory:'),
-            default => throw new InvalidArgumentException("Unsupported database driver: $driver")
-        };
-
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::ATTR_STRINGIFY_FETCHES => false, // Važno za integer/boolean kolone
-        ];
-
         try {
+            $dsn = match ($driver) {
+                'mysql' => "mysql:host=$host;dbname=$dbname;charset=$charset",
+                'pgsql' => "pgsql:host=$host;dbname=$dbname",
+                'sqlite' => "sqlite:" . ($dbname ?: ':memory:'),
+                default => throw new InvalidArgumentException("Unsupported database driver: $driver")
+            };
+
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_STRINGIFY_FETCHES => false, //integer/boolean kolone
+            ];
+
+        
             $this->conn = new PDO($dsn, $user, $pass, $options);
         } catch (PDOException $e) {
             throw new PDOException("Database connection failed: " . $e->getMessage(), (int)$e->getCode(), $e);
@@ -52,7 +53,7 @@ class Database
     }
 
     /**
-     * Postavlja logger (opciono, za debug/produkciju).
+     * Postavlja logger.
      */
     public function setLogger(LoggerInterface $logger): void
     {
@@ -60,7 +61,7 @@ class Database
     }
 
     /**
-     * Vraća PDO konekciju — korisno za specijalne slučajeve.
+     * Vraća PDO konekciju
      */
     public function getConnection(): PDO
     {
@@ -68,7 +69,7 @@ class Database
     }
 
     /**
-     * Priprema SQL upit — korisno za višestruko korišćenje.
+     * Priprema SQL upit
      */
     public function prepare(string $sql): PDOStatement
     {
