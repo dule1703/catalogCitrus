@@ -31,12 +31,7 @@ class Database
         }
 
         try {
-            $dsn = match ($driver) {
-                'mysql' => "mysql:host=$host;dbname=$dbname;charset=$charset",
-                'pgsql' => "pgsql:host=$host;dbname=$dbname",
-                'sqlite' => "sqlite:" . ($dbname ?: ':memory:'),
-                default => throw new InvalidArgumentException("Unsupported database driver: $driver")
-            };
+            $dsn = "mysql:host=$host;dbname=$dbname;charset=$charset";
 
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
