@@ -5,7 +5,6 @@ namespace App;
 use PDO;
 use PDOException;
 use PDOStatement;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 
 class Database
@@ -74,7 +73,7 @@ class Database
     /**
      * Izvršava SELECT upit i vraća sve redove.
      */
-    public function query(string $sql, array $params = []): array
+    public function query(string $sql, array $params = []): ?array
     {
         return $this->executeQuery($sql, $params, 'fetchAll');
     }
@@ -137,7 +136,7 @@ class Database
     }
 
     /**
-     * Interna metoda za izvršavanje SELECT upita — DRY.
+     * Interna metoda za izvršavanje SELECT upita.
      */
     private function executeQuery(string $sql, array $params, string $fetchMethod): mixed
     {
