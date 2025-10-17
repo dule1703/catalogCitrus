@@ -43,3 +43,4 @@ phpunit.xml
 # Node Modules (if you add npm for frontend)
 node_modules/
 
+bootstrap.php
