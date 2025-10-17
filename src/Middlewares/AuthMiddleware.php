@@ -13,7 +13,7 @@ class AuthMiddleware implements MiddlewareInterface
     private $redis;
     private $redirectUrl;
     private const RATE_LIMIT_MAX = 5; // Smanjeno na 5 za konzistentnost
-    private const RATE_LIMIT_WINDOW = 900; // 15 minuta u sekundama
+    private const RATE_LIMIT_WINDOW = 900; // 15 minuta
 
     public function __construct(LoggerInterface $logger, JwtService $jwtService, RedisClient $redis, string $redirectUrl = '/login')
     {

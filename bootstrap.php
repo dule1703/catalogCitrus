@@ -46,7 +46,9 @@ $requiredEnvVars = [
     'MAIL_FROM_ADDRESS',
 ];
 
-$missing = array_filter($requiredEnvVars, fn($var) => empty($_ENV[$var]));
+$missing = array_filter($requiredEnvVars, function($var) {
+    return empty($_ENV[$var]);
+});
 
 if (!empty($missing)) {
     throw new RuntimeException('Nedostaju obavezne .env promenljive: ' . implode(', ', $missing));
