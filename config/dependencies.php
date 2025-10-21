@@ -29,7 +29,8 @@ return [
 
     RedisClient::class => autowire()
         ->constructorParameter('host', $_ENV['REDIS_HOST'] ?? '127.0.0.1')
-        ->constructorParameter('port', (int)($_ENV['REDIS_PORT'] ?? 6379)),
+        ->constructorParameter('port', (int)($_ENV['REDIS_PORT'] ?? 6379))
+        ->constructorParameter('password', $_ENV['REDIS_PASS'] ?? ''),
 
     ViewRenderer::class => autowire()
         ->constructor(__DIR__ . '/../views'),
