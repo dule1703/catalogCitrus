@@ -11,7 +11,7 @@ use Psr\Log\LoggerInterface;
 return [
     AuthMiddleware::class => \DI\autowire()
         ->constructorParameter('logger', \DI\get(LoggerInterface::class))
-        ->constructorParameter('jwtSecret', \DI\get('jwt.secret'))
+        // ->constructorParameter('jwtSecret', \DI\get('jwt.secret'))
         ->constructorParameter('redirectUrl', '/login'),
 
     LoggingMiddleware::class => \DI\autowire()
