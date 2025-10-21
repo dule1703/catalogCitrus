@@ -19,7 +19,7 @@ class RedisClient {
         }
 
         try {
-            $this->client = new Client($parameters); // ← SADA Client dobija sve parametre
+            $this->client = new Client($parameters); 
             $this->client->connect(); 
         } catch (\Predis\Connection\ConnectionException $e) {
             throw new \RuntimeException("Greška pri povezivanju sa Redis-om: " . $e->getMessage());
