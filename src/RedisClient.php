@@ -6,13 +6,20 @@ use Predis\Client;
 class RedisClient {
     private $client;
 
-    public function __construct(string $host = '127.0.0.1', int $port = 6379) {
+    public function __construct(string $host = '127.0.0.1', int $port = 6379, string $password = '') 
+    {
+        $parameters = [
+            'host' => $host,
+            'port' => $port,
+            'timeout' => 5.0,
+        ];
+
+        if (!empty($password)) {
+            $parameters['password'] = $password;
+        }
+
         try {
-            $this->client = new Client([
-                'host' => $host,
-                'port' => $port,
-                'timeout' => 5.0, 
-            ]);
+            $this->client = new Client($parameters); // ← SADA Client dobija sve parametre
             $this->client->connect(); 
         } catch (\Predis\Connection\ConnectionException $e) {
             throw new \RuntimeException("Greška pri povezivanju sa Redis-om: " . $e->getMessage());
