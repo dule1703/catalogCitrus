@@ -18,6 +18,8 @@ return [
         ->constructorParameter('user',   $_ENV['DB_USER'] ?? 'root')
         ->constructorParameter('pass',   $_ENV['DB_PASS'] ?? ''),
 
+    'jwt.secret' => $_ENV['JWT_SECRET'] ?? '',
+
     LoggerInterface::class => autowire(Logger::class)
         ->constructor('app')
         ->method('pushHandler', get(StreamHandler::class)),
