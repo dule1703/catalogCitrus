@@ -16,4 +16,4 @@
         <p>Niste prijavljeni.</p>
         <a href="/login" class="text-blue-600 hover:underline">Nazad na prijavu</a>
     </div>
-<?php endif; ?>
+<?php endif; ?> 
