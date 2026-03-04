@@ -1,19 +1,15 @@
-console.log('JavaScript loaded');
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded');
+document.addEventListener('DOMContentLoaded', () => {    
     const form = document.getElementById('registerForm');
     const errorMessage = document.getElementById('error-message');
 
-    if (form) {
-        console.log('Form found');
+    // === REGISTRACIJA ===
+    if (form) {       
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             console.log('Form submitted');
-
             const username = document.getElementById('username').value.trim();
             const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value; // Promenjeno sa .value umesto bez njega
+            const password = document.getElementById('password').value;
             const csrfToken = document.querySelector('input[name="_csrf_token"]').value || null;
             console.log('CSRF Token:', csrfToken);
 
@@ -29,16 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage.classList.remove('hidden');
                 return;
             }
-            if (password.length < 8 || !/[A-Za-z].*[0-9]|[0-9].*[A-Za-z]/.test(password)) { // Ovo je bilo greškom
+            if (password.length < 8 || !/[A-Za-z].*[0-9]|[0-9].*[A-Za-z]/.test(password)) {
                 errorMessage.textContent = 'Lozinka mora imati najmanje 8 karaktera i sadržati slova i brojeve.';
                 errorMessage.classList.remove('hidden');
                 return;
             }
-
             errorMessage.classList.add('hidden');
 
             const data = { username, email, password };
-
             try {
                 const response = await fetch('/register', {
                     method: 'POST',
@@ -49,9 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     body: JSON.stringify(data)
                 });
-
                 const result = await response.json();
-
                 if (response.ok) {
                     window.location.href = '/register/success';
                 } else {
@@ -63,7 +55,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage.classList.remove('hidden');
             }
         });
-    } else {
-        console.log('Form not found');
-    }
+    } 
+
+    // AUTO-LOGOUT NAKON 5 MINUTA NEAKTIVNOSTI ===
+    (() => {
+        const INACTIVITY_TIMEOUT = 15 * 60 * 1000; 
+        let timeoutId = null;
+
+        const resetTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(logout, INACTIVITY_TIMEOUT);
+        };
+
+        const logout = () => {
+            document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+            document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+            window.location.href = '/';
+        };
+
+        // Reset tajmera na bilo koju aktivnost
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, resetTimer, true);
+        });
+
+        // Pokreni tajmer
+        resetTimer();
+
+        // Očisti tajmer ako korisnik napusti stranicu
+        window.addEventListener('beforeunload', () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        });
+    })();
 });

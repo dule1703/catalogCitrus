@@ -1,13 +1,14 @@
 <?php
+
 use FastRoute\RouteCollector;
 
 return function (FastRoute\RouteCollector $r) {
     $r->addRoute('GET', '/', [
         'middleware' => [
-            \App\Middlewares\ErrorHandlerMiddleware::class, 
+            \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\GuestMiddleware::class,
-            \App\Middlewares\CsrfMiddleware::class 
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'showLoginForm']
     ]);
@@ -21,13 +22,13 @@ return function (FastRoute\RouteCollector $r) {
         ],
         'handler' => [\App\Controllers\UserController::class, 'login']
     ]);
-    
+
     $r->addRoute('GET', '/forgot-password', [
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\GuestMiddleware::class,
-            \App\Middlewares\CsrfMiddleware::class 
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'showForgotPassword']
     ]);
@@ -37,11 +38,11 @@ return function (FastRoute\RouteCollector $r) {
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\GuestMiddleware::class,
-            \App\Middlewares\CsrfMiddleware::class 
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'showRegisterForm']
     ]);
-    
+
     $r->addRoute('POST', '/register', [
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
@@ -51,24 +52,24 @@ return function (FastRoute\RouteCollector $r) {
             \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'register']
-    ]);    
-    
+    ]);
+
     $r->addRoute('GET', '/register/success', [
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\GuestMiddleware::class,
-            \App\Middlewares\CsrfMiddleware::class 
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'showSuccess']
     ]);
-  
+
     $r->addRoute('GET', '/users', [
         'middleware' => [
             \App\Middlewares\ErrorHandlerMiddleware::class,
             \App\Middlewares\LoggingMiddleware::class,
             \App\Middlewares\AuthMiddleware::class,
-            \App\Middlewares\CsrfMiddleware::class 
+            \App\Middlewares\CsrfMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'index']
     ]);
@@ -81,5 +82,46 @@ return function (FastRoute\RouteCollector $r) {
             \App\Middlewares\JsonInputMiddleware::class
         ],
         'handler' => [\App\Controllers\UserController::class, 'store']
+    ]);
+
+    // === 2FA RUTE ===
+    $r->addRoute('GET', '/verify-2fa', [
+        'middleware' => [
+            \App\Middlewares\ErrorHandlerMiddleware::class,
+            \App\Middlewares\LoggingMiddleware::class,
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class
+        ],
+        'handler' => [\App\Controllers\UserController::class, 'verifyTwoFactor']
+    ]);
+
+    $r->addRoute('POST', '/verify-2fa', [
+        'middleware' => [
+            \App\Middlewares\ErrorHandlerMiddleware::class,
+            \App\Middlewares\LoggingMiddleware::class,
+            \App\Middlewares\GuestMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class
+        ],
+        'handler' => [\App\Controllers\UserController::class, 'verifyTwoFactor']
+    ]);
+
+    $r->addRoute('POST', '/logout', [
+        'middleware' => [
+            \App\Middlewares\ErrorHandlerMiddleware::class,
+            \App\Middlewares\LoggingMiddleware::class,
+            \App\Middlewares\AuthMiddleware::class, 
+            \App\Middlewares\CsrfMiddleware::class
+        ],
+        'handler' => [\App\Controllers\UserController::class, 'logout']
+    ]);
+
+    $r->addRoute('GET', '/logout', [
+        'middleware' => [
+            \App\Middlewares\ErrorHandlerMiddleware::class,
+            \App\Middlewares\LoggingMiddleware::class,
+            \App\Middlewares\AuthMiddleware::class,
+            \App\Middlewares\CsrfMiddleware::class
+        ],
+        'handler' => [\App\Controllers\UserController::class, 'logout']
     ]);
 };

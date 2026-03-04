@@ -131,4 +131,11 @@ class JwtService
     {
         return $this->refreshExpiry;
     }
+
+    public function clearAuthCookies(): void
+    {
+        // Briše access i refresh token kolačiće
+        setcookie('access_token', '', time() - 3600, '/', '', true, true);  // HttpOnly
+        setcookie('refresh_token', '', time() - 3600, '/', '', true, true); // HttpOnly
+    }
 }

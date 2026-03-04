@@ -1,8 +1,9 @@
 <?php
-
 use App\Services\UserService;
 use App\Services\JwtService;
-use App\Services\CsrfService; 
+use App\Services\CsrfService;
+use App\Services\EmailService;  
+use App\Controllers\UserController;
 use Psr\Log\LoggerInterface;
 use App\RedisClient;
 use App\Services\InputValidator;
@@ -16,7 +17,6 @@ return [
 
     // CSRF postavke
     'csrf.secret' => fn() => $_ENV['CSRF_SECRET'] ?? throw new \RuntimeException('CSRF_SECRET nije definisan u .env fajlu.'),
-
    
     JwtService::class => \DI\autowire()
         ->constructorParameter('secret', \DI\get('jwt.secret'))
@@ -27,8 +27,12 @@ return [
    
     UserService::class => \DI\autowire()
         ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
-    
+   
     CsrfService::class => \DI\autowire(),
 
     InputValidator::class => \DI\autowire(),
+    
+    EmailService::class => \DI\autowire()
+        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+
 ];

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Middlewares;
 
 use App\Interfaces\MiddlewareInterface;
@@ -12,8 +13,8 @@ class AuthMiddleware implements MiddlewareInterface
     private $jwtService;
     private $redis;
     private $redirectUrl;
-    private const RATE_LIMIT_MAX = 5; // Smanjeno na 5 za konzistentnost
-    private const RATE_LIMIT_WINDOW = 900; // 15 minuta
+    private const RATE_LIMIT_MAX = 5;
+    private const RATE_LIMIT_WINDOW = 900;
 
     public function __construct(LoggerInterface $logger, JwtService $jwtService, RedisClient $redis, string $redirectUrl = '/login')
     {
@@ -28,32 +29,37 @@ class AuthMiddleware implements MiddlewareInterface
         $isJson = $this->isJsonRequest();
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
-        // Provera rate limitinga
+        // Rate limiting
         if ($this->isRateLimited($ipAddress)) {
             $this->logger->warning("Rate limit premašen za IP: $ipAddress u AuthMiddleware");
             return $this->createUnauthorizedResponse($isJson);
         }
 
-        if (!isset($_COOKIE['access_token'])) {
-            $this->logger->warning('Access token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
+        // ISPRAVKA: ČITAJ 'jwt_token', NE 'access_token'
+        if (!isset($_COOKIE['jwt_token'])) {
+            $this->logger->warning('JWT token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
             return $this->createUnauthorizedResponse($isJson);
         }
 
         try {
-            $token = $_COOKIE['access_token'];
+            $token = $_COOKIE['jwt_token'];
+
             if (!$this->jwtService->validate($token)) {
-                $this->logger->warning('Access token nije validan');
+                $this->logger->warning('JWT token nije validan');
+                $this->jwtService->clearAuthCookies();
                 return $this->createUnauthorizedResponse($isJson);
             }
 
             if ($this->jwtService->isRevoked($token)) {
-                $this->logger->warning('Access token je opozvan');
+                $this->logger->warning('JWT token je opozvan');
+                $this->jwtService->clearAuthCookies();
                 return $this->createUnauthorizedResponse($isJson);
             }
 
-            return null; 
+            return null; // Dozvoli prolaz
+
         } catch (\Exception $e) {
-            $this->logger->error('Greška pri verifikaciji access tokena: ' . $e->getMessage());
+            $this->logger->error('Greška pri verifikaciji JWT tokena: ' . $e->getMessage());
             return $this->createUnauthorizedResponse($isJson);
         }
     }
@@ -62,11 +68,9 @@ class AuthMiddleware implements MiddlewareInterface
     {
         $key = "auth_rate_limit:$ipAddress";
         $attempts = (int)$this->redis->get($key) ?: 0;
-
         if ($attempts >= self::RATE_LIMIT_MAX) {
             return true;
         }
-
         $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
         return false;
     }
