@@ -4,7 +4,7 @@
         <p>Ovo je zaštićena stranica.</p>
 
         <form method="POST" action="/logout" class="mt-6 inline">
-            <?= $csrfService->getHiddenInput() ?? '' ?>
+            <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
             <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
                 Odjavi se
             </button>

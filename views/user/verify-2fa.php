@@ -9,7 +9,7 @@
     <?php endif; ?>
 
     <form method="POST" action="/verify-2fa" class="space-y-4">
-        <?= $csrfService->getHiddenInput() ?>
+        <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
         <div>
             <label for="code" class="block text-sm font-medium text-gray-700">Verifikacioni kod:</label>
             <input type="text" name="code" id="code" maxlength="6" required autofocus placeholder="123456"

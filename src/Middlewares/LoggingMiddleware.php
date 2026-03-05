@@ -1,9 +1,14 @@
 <?php
+
 namespace App\Middlewares;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 
-class LoggingMiddleware
+class LoggingMiddleware implements MiddlewareInterface
 {
     private LoggerInterface $logger;
 
@@ -12,16 +17,18 @@ class LoggingMiddleware
         $this->logger = $logger;
     }
 
-    public function process($request, callable $next)
-    {
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
         $this->logger->info('HTTP zahtev primljen', [
-            'method' => $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN',
-            'uri' => $_SERVER['REQUEST_URI'] ?? '/',
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-            'request_id' => $_SERVER['REQUEST_ID'] ?? 'unknown'
+            'method'     => $request->getMethod(),
+            'uri'        => (string) $request->getUri(),
+            'ip'         => $request->getServerParams()['REMOTE_ADDR'] ?? 'unknown',
+            'user_agent' => $request->getHeaderLine('User-Agent'),
+            'request_id' => $request->getAttribute('request_id', 'unknown')
         ]);
 
-        return $next($request);
+        return $handler->handle($request);
     }
 }

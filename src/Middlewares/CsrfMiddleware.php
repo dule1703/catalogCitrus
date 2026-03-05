@@ -1,73 +1,148 @@
 <?php
+
 namespace App\Middlewares;
 
-use App\Interfaces\RequestMiddlewareInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
+use Nyholm\Psr7\Response;
 
-class CsrfMiddleware implements RequestMiddlewareInterface
+class CsrfMiddleware implements MiddlewareInterface
 {
     private LoggerInterface $logger;
+    private bool $debug;
 
     public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
+
+        // Čitanje APP_DEBUG (kao u ErrorHandlerMiddleware)
+        $debugEnv = getenv('APP_DEBUG') !== false
+            ? getenv('APP_DEBUG')
+            : ($_ENV['APP_DEBUG'] ?? '0');
+
+        $this->debug = filter_var($debugEnv, FILTER_VALIDATE_BOOLEAN);
     }
 
-    public function process($request, callable $next)
-    {
-        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
+        $method = $request->getMethod();
 
-        // ✅ Kreiraj CSRF token za GET zahteve ka formama
+        // 1. Za GET zahteve – osiguraj token i stavi ga u request atribut
         if ($method === 'GET') {
-            $this->ensureCsrfToken();
-            
+            $request = $this->ensureCsrfToken($request);
         }
 
-        // ✅ Proveri CSRF token za POST/PUT/DELETE
+        // 2. Provera za mutirajuće metode
         if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'])) {
-            $providedToken = $_POST['_csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
-            $storedToken = $_COOKIE['csrf_token'] ?? null;
-// $this->logger->info('CSRF detalji', [
-//             'providedToken' => $providedToken,
-//             'storedToken' => $storedToken,
-//             'headers' => getallheaders(),
-//             'post_data' => $_POST,
-//             'raw_input' => file_get_contents('php://input'),
-//             'uri' => $_SERVER['REQUEST_URI'] ?? ''
-//         ]);
+            $providedToken = $this->getProvidedCsrfToken($request);
+            $storedToken   = $request->getCookieParams()['csrf_token'] ?? null;
+
+            // Debug log – ukloni kasnije ako ne treba
+            $this->logger->debug('CSRF provera', [
+                'method'         => $method,
+                'uri'            => $request->getUri()->getPath(),
+                'provided_token' => $providedToken ?? '(nema)',
+                'stored_token'   => $storedToken ?? '(nema)',
+                'hash_equals'    => $providedToken && $storedToken ? hash_equals($providedToken, $storedToken) : false,
+                'request_id'     => $request->getAttribute('request_id', 'unknown'),
+            ]);
 
             if (!$providedToken || !$storedToken || !hash_equals($providedToken, $storedToken)) {
-                $this->logger->warning('CSRF validacija nije uspela', [
-                    'uri' => $_SERVER['REQUEST_URI'] ?? '',
-                    'request_id' => $_SERVER['REQUEST_ID'] ?? 'unknown'
-                ]);
-
-                return [
-                    'status' => 403,
-                    'headers' => ['Content-Type' => 'application/json; charset=utf-8'],
-                    'body' => [
-                        'error' => 'Nevalidan CSRF token',
-                        'request_id' => $_SERVER['REQUEST_ID'] ?? null
-                    ]
-                ];
+                return $this->createForbiddenResponse($request);
             }
         }
 
-        return $next($request);
+        // sve ok → prosledi dalje
+        return $handler->handle($request);
     }
 
-    private function ensureCsrfToken(): void
+    /**
+     * Osigurava da CSRF token postoji u cookie-ju i stavlja ga u request atribut
+     */
+    private function ensureCsrfToken(ServerRequestInterface $request): ServerRequestInterface
     {
-        if (!isset($_COOKIE['csrf_token'])) {
+        $cookies = $request->getCookieParams();
+
+        if (!isset($cookies['csrf_token']) || empty($cookies['csrf_token'])) {
             $csrfToken = bin2hex(random_bytes(32));
+
             setcookie('csrf_token', $csrfToken, [
-                'expires' => time() + 3600,
-                'path' => '/',
-                'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
-                'httponly' => false,
+                'expires'  => time() + 86400, // 24 sata – dovoljno za sesiju
+                'path'     => '/',
+                'secure'   => $request->getUri()->getScheme() === 'https',
+                'httponly' => false,          // mora biti false da bi JS mogao čitati ako treba
                 'samesite' => 'Strict'
             ]);
-            $_COOKIE['csrf_token'] = $csrfToken;
+
+            $this->logger->debug('CSRF token generisan i postavljen u cookie', [
+                'token'      => $csrfToken,
+                'request_id' => $request->getAttribute('request_id', 'unknown')
+            ]);
+
+            // Stavi token u atribut da bi isti request (GET login) mogao da ga koristi u view-u
+            $request = $request->withAttribute('csrf_token', $csrfToken);
+        } else {
+            // Token već postoji – samo ga prosledi u atribut
+            $request = $request->withAttribute('csrf_token', $cookies['csrf_token']);
+
+            $this->logger->debug('CSRF token već postoji u cookie-ju', [
+                'token'      => $cookies['csrf_token'],
+                'request_id' => $request->getAttribute('request_id', 'unknown')
+            ]);
         }
+
+        return $request;
+    }
+
+    private function getProvidedCsrfToken(ServerRequestInterface $request): ?string
+    {
+        $body = $request->getParsedBody();
+
+        // iz forme (POST)
+        if (is_array($body) && !empty($body['_csrf_token'])) {
+            return (string) $body['_csrf_token'];
+        }
+
+        // iz header-a (npr. AJAX / API)
+        $header = $request->getHeaderLine('X-CSRF-Token');
+        if ($header !== '') {
+            return $header;
+        }
+
+        return null;
+    }
+
+    private function createForbiddenResponse(ServerRequestInterface $request): ResponseInterface
+    {
+        $payload = [
+            'error'      => 'Nevalidan CSRF token',
+            'request_id' => $request->getAttribute('request_id', 'n/a'),
+        ];
+
+        if ($this->debug) {
+            $cookies = $request->getCookieParams();
+            $body    = $request->getParsedBody();
+
+            $payload['debug'] = [
+                'provided_token'     => $this->getProvidedCsrfToken($request),
+                'stored_token'       => $cookies['csrf_token'] ?? null,
+                'parsed_body_keys'   => is_array($body) ? array_keys($body) : '(nije array)',
+                'has_csrf_in_body'   => isset($body['_csrf_token']),
+                'has_csrf_in_header' => $request->getHeaderLine('X-CSRF-Token') !== '',
+                'request_method'     => $request->getMethod(),
+                'uri'                => $request->getUri()->getPath(),
+            ];
+        }
+
+        return new Response(
+            403,
+            ['Content-Type' => 'application/json; charset=utf-8'],
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
     }
 }

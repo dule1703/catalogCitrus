@@ -2,101 +2,119 @@
 
 namespace App\Middlewares;
 
-use App\Interfaces\MiddlewareInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use App\Services\JwtService;
 use App\RedisClient;
+use Nyholm\Psr7\Response; 
 
 class AuthMiddleware implements MiddlewareInterface
 {
-    private $logger;
-    private $jwtService;
-    private $redis;
-    private $redirectUrl;
-    private const RATE_LIMIT_MAX = 5;
+    private LoggerInterface $logger;
+    private JwtService $jwtService;
+    private RedisClient $redis;
+    private string $redirectUrl;
+
+    private const RATE_LIMIT_MAX    = 5;
     private const RATE_LIMIT_WINDOW = 900;
 
-    public function __construct(LoggerInterface $logger, JwtService $jwtService, RedisClient $redis, string $redirectUrl = '/login')
-    {
-        $this->logger = $logger;
+    public function __construct(
+        LoggerInterface $logger,
+        JwtService $jwtService,
+        RedisClient $redis,
+        string $redirectUrl = '/login'
+    ) {
+        $this->logger     = $logger;
         $this->jwtService = $jwtService;
-        $this->redis = $redis;
+        $this->redis      = $redis;
         $this->redirectUrl = $redirectUrl;
     }
 
-    public function process()
-    {
-        $isJson = $this->isJsonRequest();
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
+        $ipAddress = $request->getServerParams()['REMOTE_ADDR'] ?? 'unknown';
+        $isJson    = $this->isJsonRequest($request);
 
         // Rate limiting
         if ($this->isRateLimited($ipAddress)) {
             $this->logger->warning("Rate limit premašen za IP: $ipAddress u AuthMiddleware");
-            return $this->createUnauthorizedResponse($isJson);
+            return $this->createUnauthorizedResponse($request, $isJson);
         }
 
-        // ISPRAVKA: ČITAJ 'jwt_token', NE 'access_token'
-        if (!isset($_COOKIE['jwt_token'])) {
-            $this->logger->warning('JWT token nije prisutan: ' . ($_SERVER['REQUEST_URI'] ?? ''));
-            return $this->createUnauthorizedResponse($isJson);
+        $cookies = $request->getCookieParams();
+        $token   = $cookies['jwt_token'] ?? null;
+
+        if ($token === null) {
+            $this->logger->warning('JWT token nije prisutan: ' . $request->getUri()->getPath());
+            return $this->createUnauthorizedResponse($request, $isJson);
         }
 
         try {
-            $token = $_COOKIE['jwt_token'];
-
             if (!$this->jwtService->validate($token)) {
                 $this->logger->warning('JWT token nije validan');
-                $this->jwtService->clearAuthCookies();
-                return $this->createUnauthorizedResponse($isJson);
+                $this->jwtService->clearAuthCookies(); // ← ovo mora da vrati Response sa set-cookie header-ima!
+                return $this->createUnauthorizedResponse($request, $isJson);
             }
 
             if ($this->jwtService->isRevoked($token)) {
                 $this->logger->warning('JWT token je opozvan');
                 $this->jwtService->clearAuthCookies();
-                return $this->createUnauthorizedResponse($isJson);
+                return $this->createUnauthorizedResponse($request, $isJson);
             }
 
-            return null; // Dozvoli prolaz
+            // Sve OK → prosledi dalje u lancu
+            return $handler->handle($request);
 
         } catch (\Exception $e) {
-            $this->logger->error('Greška pri verifikaciji JWT tokena: ' . $e->getMessage());
-            return $this->createUnauthorizedResponse($isJson);
+            $this->logger->error('Greška pri verifikaciji JWT: ' . $e->getMessage());
+            return $this->createUnauthorizedResponse($request, $isJson);
         }
     }
 
     private function isRateLimited(string $ipAddress): bool
     {
         $key = "auth_rate_limit:$ipAddress";
-        $attempts = (int)$this->redis->get($key) ?: 0;
+        $attempts = (int) $this->redis->get($key) ?: 0;
+
         if ($attempts >= self::RATE_LIMIT_MAX) {
             return true;
         }
+
+        // ★★★ OVO radi sa tvojom trenutnom RedisClient klasom ★★★
         $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
+
         return false;
     }
-
-    private function isJsonRequest(): bool
+    private function isJsonRequest(ServerRequestInterface $request): bool
     {
-        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
-        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        $accept     = $request->getHeaderLine('Accept');
+        $contentType = $request->getHeaderLine('Content-Type');
+
         return str_contains($accept, 'application/json') ||
                str_contains($contentType, 'application/json');
     }
 
-    private function createUnauthorizedResponse(bool $isJson): array
-    {
+    private function createUnauthorizedResponse(
+        ServerRequestInterface $request,
+        bool $isJson
+    ): ResponseInterface {
         if ($isJson) {
-            return [
-                'status' => 401,
-                'headers' => ['Content-Type' => 'application/json'],
-                'body' => json_encode(['error' => 'Neovlašćeni pristup'])
-            ];
-        } else {
-            return [
-                'status' => 302,
-                'headers' => ['Location' => $this->redirectUrl],
-                'body' => ''
-            ];
+            return new Response(
+                401,
+                ['Content-Type' => 'application/json'],
+                json_encode(['error' => 'Neovlašćeni pristup'])
+            );
         }
+
+        // Za HTML → redirect
+        return new Response(
+            302,
+            ['Location' => $this->redirectUrl]
+        );
     }
 }

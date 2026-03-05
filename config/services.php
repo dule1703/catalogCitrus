@@ -3,36 +3,37 @@ use App\Services\UserService;
 use App\Services\JwtService;
 use App\Services\CsrfService;
 use App\Services\EmailService;  
-use App\Controllers\UserController;
 use Psr\Log\LoggerInterface;
 use App\RedisClient;
 use App\Services\InputValidator;
+use function DI\autowire;
+use function DI\get;
 
 return [
     // JWT postavke
     'jwt.secret' => fn() => $_ENV['JWT_SECRET'] ?? throw new \RuntimeException('JWT_SECRET nije definisan u .env fajlu.'),
-    'jwt.issuer' => fn() => $_ENV['APP_URL'] ?? 'yourapp.com',
+    'jwt.issuer' => fn() => $_ENV['APP_URL'] ?? 'citrus.ddwebapps.com',
     'jwt.accessExpiry' => fn() => (int)($_ENV['JWT_ACCESS_EXPIRY'] ?? 900),  // 15 minuta
     'jwt.refreshExpiry' => fn() => (int)($_ENV['JWT_REFRESH_EXPIRY'] ?? 2592000),  // 30 dana
 
     // CSRF postavke
     'csrf.secret' => fn() => $_ENV['CSRF_SECRET'] ?? throw new \RuntimeException('CSRF_SECRET nije definisan u .env fajlu.'),
    
-    JwtService::class => \DI\autowire()
-        ->constructorParameter('secret', \DI\get('jwt.secret'))
-        ->constructorParameter('issuer', \DI\get('jwt.issuer'))
-        ->constructorParameter('accessExpiry', \DI\get('jwt.accessExpiry'))
-        ->constructorParameter('refreshExpiry', \DI\get('jwt.refreshExpiry'))
-        ->constructorParameter('redis', \DI\get(RedisClient::class)),
+    JwtService::class => autowire()
+        ->constructorParameter('secret', get('jwt.secret'))
+        ->constructorParameter('issuer', get('jwt.issuer'))
+        ->constructorParameter('accessExpiry', get('jwt.accessExpiry'))
+        ->constructorParameter('refreshExpiry', get('jwt.refreshExpiry'))
+        ->constructorParameter('redis', get(RedisClient::class)),
    
-    UserService::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    UserService::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class)),
    
-    CsrfService::class => \DI\autowire(),
+    CsrfService::class => autowire(),
 
-    InputValidator::class => \DI\autowire(),
+    InputValidator::class => autowire(),
     
-    EmailService::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    EmailService::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class)),
 
 ];

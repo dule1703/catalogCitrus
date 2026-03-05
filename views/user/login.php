@@ -6,7 +6,7 @@
         </div>
     <?php endif; ?>
     <form method="POST" action="/login" class="space-y-4">
-        <?= $csrfService->getHiddenInput() ?>
+        <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
         <div>
             <label for="username" class="block text-sm font-medium text-gray-700">Korisničko ime:</label>
             <input type="text" name="username" id="username" required

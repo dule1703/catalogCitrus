@@ -1,10 +1,17 @@
 <?php
+
 namespace App\Middlewares;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
-use App\Interfaces\RequestMiddlewareInterface;
+use Nyholm\Psr7\Response;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
-class GuestMiddleware 
+class GuestMiddleware implements MiddlewareInterface
 {
     private string $jwtSecret;
     private LoggerInterface $logger;
@@ -18,35 +25,29 @@ class GuestMiddleware
         $this->logger = $logger;
     }
 
-    /**
-     * Bez parametara — kompatibilno sa tvojim index.php
-     * Ako je korisnik prijavljen, preusmeri na /dashboard i prekini izvršavanje.
-     */
-    public function process(): ?array
-    {
-        if (!isset($_COOKIE['jwt_token'])) {
-            return null; // Nastavi dalje
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
+        $cookies = $request->getCookieParams();
+
+        if (!isset($cookies['jwt_token'])) {
+            return $handler->handle($request); // gost → nastavi
         }
 
         try {
-            // Koristi isti JWT servis logiku kao u JwtService
-            $token = $_COOKIE['jwt_token'];
-            $decoded = \Firebase\JWT\JWT::decode(
-                $token,
-                new \Firebase\JWT\Key($this->jwtSecret, 'HS256')
-            );
+            $token = $cookies['jwt_token'];
+            $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
 
-            // Ako je dekodiranje uspelo → korisnik je prijavljen
-            header('Location: /dashboard');
-            exit;
-
+            // Korisnik je prijavljen → redirect na dashboard
+            return new Response(302, ['Location' => '/dashboard']);
         } catch (\Exception $e) {
-            // Token nije validan → tretiraj kao gosta
             $this->logger->debug('GuestMiddleware: nevalidan JWT token', [
                 'error' => $e->getMessage(),
-                'request_id' => $_SERVER['REQUEST_ID'] ?? 'unknown'
+                'request_id' => $request->getAttribute('request_id', 'unknown')
             ]);
-            return null;
+
+            return $handler->handle($request); 
         }
     }
 }

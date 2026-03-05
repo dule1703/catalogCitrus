@@ -8,24 +8,26 @@ use App\Middlewares\ErrorHandlerMiddleware;
 use App\Middlewares\CsrfMiddleware;
 use Psr\Log\LoggerInterface;
 
+use function DI\autowire;
+use function DI\get;
+
 return [
-    AuthMiddleware::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class))
-        // ->constructorParameter('jwtSecret', \DI\get('jwt.secret'))
+    AuthMiddleware::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class))       
         ->constructorParameter('redirectUrl', '/login'),
 
-    LoggingMiddleware::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    LoggingMiddleware::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class)),
   
-    GuestMiddleware::class => \DI\autowire()
-        ->constructorParameter('jwtSecret', \DI\get('jwt.secret'))
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    GuestMiddleware::class => autowire()
+        ->constructorParameter('jwtSecret', get('jwt.secret'))
+        ->constructorParameter('logger', get(LoggerInterface::class)),
   
-    JsonInputMiddleware::class => \DI\autowire(),
+    JsonInputMiddleware::class => autowire(),
 
-    CsrfMiddleware::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    CsrfMiddleware::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class)),
   
-    ErrorHandlerMiddleware::class => \DI\autowire()
-        ->constructorParameter('logger', \DI\get(LoggerInterface::class)),
+    ErrorHandlerMiddleware::class => autowire()
+        ->constructorParameter('logger', get(LoggerInterface::class)),
 ];

@@ -2,7 +2,7 @@
     <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Registracija</h2>
     <div id="error-message" class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-md mb-4 text-center hidden"></div>
 <form id="registerForm" action="/register" method="post" class="space-y-4">
-     <?= $csrfService->getHiddenInput() ?>
+     <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
     <div>
         <label for="username" class="block text-sm font-medium text-gray-700">Korisničko ime:</label>
         <input type="text" name="username" id="username" required

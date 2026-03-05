@@ -1,10 +1,13 @@
 <?php
+
 namespace App\Services;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use App\RedisClient;
 use RuntimeException;
+use Psr\Http\Message\ResponseInterface;
+use Nyholm\Psr7\Response; // ili Laminas\Diactoros\Response, zavisno šta koristiš
 
 class JwtService
 {
@@ -14,15 +17,20 @@ class JwtService
     private int $refreshExpiry;
     private RedisClient $redis;
 
-    public function __construct(string $secret, string $issuer, int $accessExpiry, int $refreshExpiry, RedisClient $redis)
-    {
+    public function __construct(
+        string $secret,
+        string $issuer,
+        int $accessExpiry,
+        int $refreshExpiry,
+        RedisClient $redis
+    ) {
         if (empty($secret)) {
             throw new RuntimeException('JWT_SECRET nije definisan.');
         }
         $this->secret = $secret;
         $this->issuer = $issuer;
-        $this->accessExpiry = $accessExpiry;  // npr. 15 min
-        $this->refreshExpiry = $refreshExpiry;  // npr. 30 dana
+        $this->accessExpiry = $accessExpiry;   // npr. 15 min
+        $this->refreshExpiry = $refreshExpiry; // npr. 30 dana
         $this->redis = $redis;
     }
 
@@ -32,13 +40,12 @@ class JwtService
     public function issueTokens(int $userId): array
     {
         $now = time();
-        $jtiAccess = bin2hex(random_bytes(16));  // Jedinstveni identifikator za access token
-        $jtiRefresh = bin2hex(random_bytes(16));  // Jedinstveni identifikator za refresh token
+        $jtiAccess  = bin2hex(random_bytes(16));
+        $jtiRefresh = bin2hex(random_bytes(16));
 
-        // Access token payload
         $accessPayload = [
             'iss' => $this->issuer,
-            'aud' => $this->issuer,  // Audience (možeš prilagoditi)
+            'aud' => $this->issuer,
             'sub' => $userId,
             'iat' => $now,
             'nbf' => $now,
@@ -46,17 +53,16 @@ class JwtService
             'jti' => $jtiAccess
         ];
 
-        // Refresh token payload
         $refreshPayload = [
             'iss' => $this->issuer,
             'sub' => $userId,
             'iat' => $now,
             'exp' => $now + $this->refreshExpiry,
             'jti' => $jtiRefresh,
-            'type' => 'refresh'  // Obeležava da je refresh token
+            'type' => 'refresh'
         ];
 
-        $accessToken = JWT::encode($accessPayload, $this->secret, 'HS256');
+        $accessToken  = JWT::encode($accessPayload, $this->secret, 'HS256');
         $refreshToken = JWT::encode($refreshPayload, $this->secret, 'HS256');
 
         $this->redis->set("jti:access:$jtiAccess", 1, $this->accessExpiry);
@@ -86,56 +92,102 @@ class JwtService
         try {
             $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
             $jti = $decoded->jti;
-            $key = strpos($token, '"type":"refresh"') !== false ? "jti:refresh:$jti" : "jti:access:$jti";
+
+            $key = (isset($decoded->type) && $decoded->type === 'refresh')
+                ? "jti:refresh:$jti"
+                : "jti:access:$jti";
+
             return $this->redis->get($key) !== null;
         } catch (\Exception $e) {
-            return true; // Ako dekodiranje ne uspe, pretpostavi da je opozvan
+            return true; // Ako dekodiranje ne uspe, tretiraj kao opozvan
         }
     }
 
     /**
-     * Postavlja access i refresh token u HTTP-only kolačiće
+     * Dodaje access i refresh token kao Set-Cookie header-e u postojeći Response
+     * Ako response nije prosleđen, kreira novi
      */
-    public function setAuthCookies(string $accessToken, string $refreshToken): void
-    {
-        $now = time();
-        setcookie('access_token', $accessToken, [
-            'expires' => $now + $this->accessExpiry,
-            'path' => '/',
-            'secure' => true,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+    public function setAuthCookies(
+        string $accessToken,
+        string $refreshToken,
+        ?ResponseInterface $response = null
+    ): ResponseInterface {
+        $response = $response ?? new Response(200);
 
-        setcookie('refresh_token', $refreshToken, [
-            'expires' => $now + $this->refreshExpiry,
-            'path' => '/',
-            'secure' => true,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+        $now = time();
+
+        // Access token cookie
+        $accessCookie = $this->buildCookieString(
+            'jwt_token',
+            $accessToken,
+            $now + $this->accessExpiry,
+            true,  // secure
+            true,  // httponly
+            'Lax'
+        );
+
+        // Refresh token cookie
+        $refreshCookie = $this->buildCookieString(
+            'refresh_token',
+            $refreshToken,
+            $now + $this->refreshExpiry,
+            true,
+            true,
+            'Lax'
+        );
+
+        $response = $response->withAddedHeader('Set-Cookie', $accessCookie);
+        $response = $response->withAddedHeader('Set-Cookie', $refreshCookie);
+
+        return $response;
     }
 
     /**
-     * Dobavlja vreme isteka access tokena
+     * Briše auth cookie-je dodavanjem Set-Cookie sa prošlim expire-om
      */
+    public function clearAuthCookies(?ResponseInterface $response = null): ResponseInterface
+    {
+        $response = $response ?? new Response(200);
+
+        $clearAccess  = $this->buildCookieString('jwt_token', '', time() - 3600, true, true, 'Lax');
+        $clearRefresh = $this->buildCookieString('refresh_token', '', time() - 3600, true, true, 'Lax');
+
+        $response = $response->withAddedHeader('Set-Cookie', $clearAccess);
+        $response = $response->withAddedHeader('Set-Cookie', $clearRefresh);
+
+        return $response;
+    }
+
+    /**
+     * Pomoćna metoda za generisanje Set-Cookie stringa
+     */
+    private function buildCookieString(
+        string $name,
+        string $value,
+        int $expires,
+        bool $secure,
+        bool $httponly,
+        string $samesite
+    ): string {
+        $parts = [
+            urlencode($name) . '=' . urlencode($value),
+            'expires=' . gmdate('D, d M Y H:i:s T', $expires),
+            'path=/',
+            $secure ? 'secure' : '',
+            $httponly ? 'httponly' : '',
+            'samesite=' . $samesite
+        ];
+
+        return implode('; ', array_filter($parts));
+    }
+
     public function getAccessExpiry(): int
     {
         return $this->accessExpiry;
     }
 
-    /**
-     * Dobavlja vreme isteka refresh tokena
-     */
     public function getRefreshExpiry(): int
     {
         return $this->refreshExpiry;
-    }
-
-    public function clearAuthCookies(): void
-    {
-        // Briše access i refresh token kolačiće
-        setcookie('access_token', '', time() - 3600, '/', '', true, true);  // HttpOnly
-        setcookie('refresh_token', '', time() - 3600, '/', '', true, true); // HttpOnly
     }
 }

@@ -1,37 +1,55 @@
 <?php
+
 namespace App\Middlewares;
 
-class JsonInputMiddleware
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Nyholm\Psr7\Response;
+
+class JsonInputMiddleware implements MiddlewareInterface
 {
-    public function process($request, callable $next)
-    {
-        // Proveri da li je zahtev JSON
-        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-        if (strpos($contentType, 'application/json') === false) {
-            return [
-                'status' => 400,
-                'headers' => ['Content-Type' => 'application/json; charset=utf-8'],
-                'body' => [
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
+        $contentType = $request->getHeaderLine('Content-Type');
+
+        if (stripos($contentType, 'application/json') === false) {
+            return new Response(
+                400,
+                ['Content-Type' => 'application/json; charset=utf-8'],
+                json_encode([
                     'error' => 'Očekuje se Content-Type: application/json'
-                ]
-            ];
+                ], JSON_THROW_ON_ERROR)
+            );
         }
 
-        // Parsiraj JSON
-        $input = json_decode(file_get_contents('php://input'), true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return [
-                'status' => 400,
-                'headers' => ['Content-Type' => 'application/json; charset=utf-8'],
-                'body' => [
-                    'error' => 'Nevalidan JSON format'
-                ]
-            ];
+        // Većina PSR-7 implementacija automatski parsira JSON u getParsedBody()
+        $parsed = $request->getParsedBody();
+
+        if ($parsed === null || $parsed === []) {
+            // Ako nije parsirano → pokušaj ručno
+            $body = (string) $request->getBody();
+            $input = json_decode($body, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return new Response(
+                    400,
+                    ['Content-Type' => 'application/json; charset=utf-8'],
+                    json_encode([
+                        'error' => 'Nevalidan JSON format: ' . json_last_error_msg()
+                    ], JSON_THROW_ON_ERROR)
+                );
+            }
+
+            // Dodaj u atribut da bi controller/video video
+            $request = $request->withAttribute('json', $input);
+        } else {
+            $request = $request->withAttribute('json', $parsed);
         }
 
-        // Prosledi input dalje kroz $request (najbolja praksa)
-        $request['json'] = $input;
-
-        return $next($request);
+        return $handler->handle($request);
     }
 }
