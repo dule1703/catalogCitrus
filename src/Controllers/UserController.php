@@ -42,13 +42,24 @@ class UserController
         $this->userRepository   = $userRepository;
     }
 
+    // ─────────────────────────────────────────
+    //  Helper — CSRF token za re-render formi
+    //  na POST zahtevu (atribut nije postavljen
+    //  od strane CsrfMiddleware-a na POST)
+    // ─────────────────────────────────────────
+    private function getCsrfToken(ServerRequestInterface $request): string
+    {
+        return $request->getCookieParams()['csrf_token']
+            ?? $request->getAttribute('csrf_token', '');
+    }
+
     public function showLoginForm(ServerRequestInterface $request, array $vars): ResponseInterface
     {
         $this->logger->info("showLoginForm called");
 
         $content = $this->viewRenderer->render('user/login.php', [
             'csrfService' => $this->csrfService,
-            'csrf_token'  => $request->getAttribute('csrf_token', '')
+            'csrf_token'  => $this->getCsrfToken($request)
         ]);
 
         return new Response(
@@ -64,7 +75,7 @@ class UserController
 
         $content = $this->viewRenderer->render('user/create.php', [
             'csrfService' => $this->csrfService,
-            'csrf_token'  => $request->getAttribute('csrf_token', '')
+            'csrf_token'  => $this->getCsrfToken($request)
         ]);
 
         return new Response(
@@ -128,12 +139,20 @@ class UserController
         $username = $input['username'] ?? '';
         $password = $input['password'] ?? '';
 
+        // Prazni kredencijali
         if (empty($username) || empty($password)) {
             $this->logger->warning("Login attempt with empty credentials");
+
+            $content = $this->viewRenderer->render('user/login.php', [
+                'csrfService' => $this->csrfService,
+                'csrf_token'  => $this->getCsrfToken($request),
+                'error'       => 'Korisničko ime i lozinka su obavezni'
+            ]);
+
             return new Response(
                 400,
-                ['Content-Type' => 'application/json; charset=utf-8'],
-                json_encode(['error' => 'Korisničko ime i lozinka su obavezni'], JSON_UNESCAPED_UNICODE)
+                ['Content-Type' => 'text/html; charset=utf-8'],
+                $content
             );
         }
 
@@ -145,12 +164,20 @@ class UserController
 
         $user = $this->userService->login($username, $password);
 
+        // Pogrešni kredencijali
         if (!$user) {
             $this->logger->warning("Login failed for user: $username");
+
+            $content = $this->viewRenderer->render('user/login.php', [
+                'csrfService' => $this->csrfService,
+                'csrf_token'  => $this->getCsrfToken($request),
+                'error'       => 'Pogrešno korisničko ime ili lozinka'
+            ]);
+
             return new Response(
                 401,
-                ['Content-Type' => 'application/json; charset=utf-8'],
-                json_encode(['error' => 'Pogrešno korisničko ime ili lozinka'], JSON_UNESCAPED_UNICODE)
+                ['Content-Type' => 'text/html; charset=utf-8'],
+                $content
             );
         }
 
@@ -171,7 +198,7 @@ class UserController
             $html = $this->viewRenderer->render('user/verify-2fa.php', [
                 'title'       => '2FA Verifikacija',
                 'csrfService' => $this->csrfService,
-                'csrf_token'  => $request->getAttribute('csrf_token', '')
+                'csrf_token'  => $this->getCsrfToken($request)
             ]);
 
             return new Response(
@@ -190,7 +217,8 @@ class UserController
         $html = $this->viewRenderer->render('home.php', [
             'title'       => 'Početna',
             'user'        => $user,
-            'csrfService' => $this->csrfService
+            'csrfService' => $this->csrfService,
+            'csrf_token'  => $this->getCsrfToken($request)
         ]);
 
         return new Response(
@@ -218,7 +246,7 @@ class UserController
             $html = $this->viewRenderer->render('user/verify-2fa.php', [
                 'title'       => '2FA Verifikacija',
                 'csrfService' => $this->csrfService,
-                'csrf_token'  => $request->getAttribute('csrf_token', '')
+                'csrf_token'  => $this->getCsrfToken($request)
             ]);
 
             return new Response(
@@ -232,12 +260,13 @@ class UserController
             $input = $this->getRequestData($request);
             $code  = trim($input['code'] ?? '');
 
+            // Neispravan format koda
             if (empty($code) || strlen($code) !== 6 || !ctype_digit($code)) {
                 $html = $this->viewRenderer->render('user/verify-2fa.php', [
                     'title'       => '2FA Verifikacija',
                     'error'       => 'Unesite validan 6-cifreni kod.',
                     'csrfService' => $this->csrfService,
-                    'csrf_token'  => $request->getAttribute('csrf_token', '')
+                    'csrf_token'  => $this->getCsrfToken($request)
                 ]);
 
                 return new Response(
@@ -264,12 +293,13 @@ class UserController
 
             $isValid = $this->userService->verifyTwoFactorCode($userId, $code);
 
+            // Pogrešan ili istekao kod
             if (!$isValid) {
                 $html = $this->viewRenderer->render('user/verify-2fa.php', [
                     'title'       => '2FA Verifikacija',
                     'error'       => 'Pogrešan ili istekli kod.',
                     'csrfService' => $this->csrfService,
-                    'csrf_token'  => $request->getAttribute('csrf_token', '')
+                    'csrf_token'  => $this->getCsrfToken($request)
                 ]);
 
                 return new Response(
@@ -296,7 +326,8 @@ class UserController
             $html = $this->viewRenderer->render('home.php', [
                 'title'       => 'Početna',
                 'user'        => $user,
-                'csrfService' => $this->csrfService
+                'csrfService' => $this->csrfService,
+                'csrf_token'  => $this->getCsrfToken($request)
             ]);
 
             return new Response(

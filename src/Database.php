@@ -141,11 +141,11 @@ class Database
     private function executeQuery(string $sql, array $params, string $fetchMethod): mixed
     {
         $this->logQuery($sql, $params);
-
         try {
             $stmt = $this->conn->prepare($sql);
             $stmt->execute($params);
-            return $stmt->{$fetchMethod}();
+            $result = $stmt->{$fetchMethod}();
+            return $result === false ? null : $result; 
         } catch (PDOException $e) {
             throw new PDOException("Query failed: " . $e->getMessage(), (int)$e->getCode(), $e);
         }

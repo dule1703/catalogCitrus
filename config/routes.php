@@ -7,8 +7,7 @@ return function (RouteCollector $r) {
     // ─────────────────────────────────────────
     //  Middleware grupe
     //  ErrorHandlerMiddleware i LoggingMiddleware
-    //  su globalni (dodaju se u index.php) i
-    //  ne trebaju se navoditi ovde.
+    //  su globalni (dodaju se u index.php)
     // ─────────────────────────────────────────
 
     $guest = [

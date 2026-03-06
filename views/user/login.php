@@ -1,8 +1,8 @@
 <div class="form-container bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
     <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Prijava</h2>
-    <?php if (isset($_GET['error'])): ?>
+    <?php if (!empty($error)): ?>
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-md mb-4 text-center">
-            <?= htmlspecialchars($_GET['error']) ?>
+            <?= htmlspecialchars($error) ?>
         </div>
     <?php endif; ?>
     <form method="POST" action="/login" class="space-y-4">

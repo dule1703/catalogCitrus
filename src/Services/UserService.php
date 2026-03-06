@@ -86,8 +86,7 @@ class UserService
             return null;
         }
 
-        $username = InputValidator::validateUsername($username);
-        $password = InputValidator::validatePassword($password);
+        $username = trim($username);
         $user = $this->userRepository->findByUsername($username);
 
         if (!$user) {

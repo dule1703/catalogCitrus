@@ -44,7 +44,7 @@ class DatabaseTest extends TestCase
         // Očekujemo InvalidArgumentException za nepoznati driver
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/Unsupported database driver/');
-        new Database(driver: 'oracle');  // Bez injektovanog PDO, baca grešku
+        new Database(driver: 'oracle');  
     }
 
     public function testQueryWithParams(): void
