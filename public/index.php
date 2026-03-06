@@ -27,15 +27,16 @@ $dispatcher = FastRoute\cachedDispatcher(require_once $routesFile, [
     'cacheDisabled' => ($_ENV['APP_ENV'] ?? 'local') === 'local'
 ]);
 
-$httpMethod = $_SERVER['REQUEST_METHOD'] === 'HEAD' ? 'GET' : $_SERVER['REQUEST_METHOD'];
-$uri        = rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
-$routeInfo  = $dispatcher->dispatch($httpMethod, $uri);
-
 // — Globalni middleware (uvek se izvršavaju)
 $globalMiddleware = [
     \App\Middlewares\ErrorHandlerMiddleware::class,
     \App\Middlewares\LoggingMiddleware::class,
 ];
+
+$httpMethod = $_SERVER['REQUEST_METHOD'] === 'HEAD' ? 'GET' : $_SERVER['REQUEST_METHOD'];
+$uri        = rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
+$routeInfo  = $dispatcher->dispatch($httpMethod, $uri);
+
 
 // — Dispatch
 try {
