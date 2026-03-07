@@ -1,6 +1,7 @@
 body {
     font-family: 'Inter', sans-serif;
-    background: linear-gradient(to bottom right, #e0f2fe, #bfdbfe);
+    background: #fff5f5;
+    background: linear-gradient(90deg, rgba(255, 245, 245, 1) 0%, rgba(255, 245, 230, 1) 50%, rgba(255, 244, 224, 1) 100%);
     min-height: 100vh;
 }
 
@@ -12,13 +13,13 @@ body {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 .header {
-    background-color: #3b82f6;
+    background: linear-gradient(135deg, #f39c12, #e67e22);
     color: white;
     padding: 1rem;
     text-align: center;
 }
 .footer {
-    background-color: #1e40af;
+    background-color: #e67e22;
     color: white;
     padding: 1rem;
     text-align: center;
@@ -31,12 +32,12 @@ body {
 transition: all 0.3s ease;
 }
 .input-field:focus {
-border-color: #3b82f6;
+border-color: #f39c12;
 box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 .submit-button {
 transition: background-color 0.3s ease;
 }
 .submit-button:hover {
-background-color: #2563eb;
+background-color: #e67e22;
 }

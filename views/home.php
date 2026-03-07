@@ -14,6 +14,6 @@
     <div class="p-6">
         <h1 class="text-2xl font-bold">Greška</h1>
         <p>Niste prijavljeni.</p>
-        <a href="/login" class="text-blue-600 hover:underline">Nazad na prijavu</a>
+        <a href="/login" class="text-orange-600 hover:underline">Nazad na prijavu</a>
     </div>
 <?php endif; ?> 

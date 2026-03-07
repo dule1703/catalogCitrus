@@ -5,9 +5,10 @@ namespace App\Services;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use App\RedisClient;
+use App\Repositories\UserRepository;
 use RuntimeException;
 use Psr\Http\Message\ResponseInterface;
-use Nyholm\Psr7\Response; // ili Laminas\Diactoros\Response, zavisno šta koristiš
+use Nyholm\Psr7\Response;
 
 class JwtService
 {
@@ -16,30 +17,34 @@ class JwtService
     private int $accessExpiry;
     private int $refreshExpiry;
     private RedisClient $redis;
+    private UserRepository $userRepository;
 
     public function __construct(
         string $secret,
         string $issuer,
         int $accessExpiry,
         int $refreshExpiry,
-        RedisClient $redis
+        RedisClient $redis,
+        UserRepository $userRepository
     ) {
         if (empty($secret)) {
             throw new RuntimeException('JWT_SECRET nije definisan.');
         }
-        $this->secret = $secret;
-        $this->issuer = $issuer;
-        $this->accessExpiry = $accessExpiry;   // npr. 15 min
-        $this->refreshExpiry = $refreshExpiry; // npr. 30 dana
-        $this->redis = $redis;
+        $this->secret         = $secret;
+        $this->issuer         = $issuer;
+        $this->accessExpiry   = $accessExpiry;
+        $this->refreshExpiry  = $refreshExpiry;
+        $this->redis          = $redis;
+        $this->userRepository = $userRepository;
     }
 
     /**
-     * Generiše access i refresh token za korisnika
+     * Generiše access i refresh token.
+     * Upisuje JTI u Redis whitelist i token u jwt_tokens tabelu.
      */
     public function issueTokens(int $userId): array
     {
-        $now = time();
+        $now        = time();
         $jtiAccess  = bin2hex(random_bytes(16));
         $jtiRefresh = bin2hex(random_bytes(16));
 
@@ -54,25 +59,30 @@ class JwtService
         ];
 
         $refreshPayload = [
-            'iss' => $this->issuer,
-            'sub' => $userId,
-            'iat' => $now,
-            'exp' => $now + $this->refreshExpiry,
-            'jti' => $jtiRefresh,
+            'iss'  => $this->issuer,
+            'sub'  => $userId,
+            'iat'  => $now,
+            'exp'  => $now + $this->refreshExpiry,
+            'jti'  => $jtiRefresh,
             'type' => 'refresh'
         ];
 
         $accessToken  = JWT::encode($accessPayload, $this->secret, 'HS256');
         $refreshToken = JWT::encode($refreshPayload, $this->secret, 'HS256');
 
-        $this->redis->set("jti:access:$jtiAccess", 1, $this->accessExpiry);
-        $this->redis->set("jti:refresh:$jtiRefresh", 1, $this->refreshExpiry);
+        // Whitelist — token važi dok JTI postoji u Redisu
+        $this->redis->set("jti:access:{$jtiAccess}", '1', $this->accessExpiry);
+        $this->redis->set("jti:refresh:{$jtiRefresh}", '1', $this->refreshExpiry);
+
+        // Upis u bazu
+        $expiresAt = date('Y-m-d H:i:s', $now + $this->accessExpiry);
+        $this->userRepository->saveJwtToken($userId, $accessToken, $expiresAt);
 
         return [$accessToken, $refreshToken];
     }
 
     /**
-     * Validira JWT token
+     * Proverava potpis i istek tokena
      */
     public function validate(string $token): bool
     {
@@ -85,27 +95,70 @@ class JwtService
     }
 
     /**
-     * Proverava da li je token opozvan na osnovu jti
+     * Token je OPOZVAN ako JTI NE postoji u Redisu.
+     * Whitelist logika:
+     *   issueTokens() → dodaje JTI (token validan)
+     *   revokeToken()  → briše JTI (token opozvan)
+     *   isRevoked()    → true ako JTI ne postoji
      */
     public function isRevoked(string $token): bool
     {
         try {
             $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
-            $jti = $decoded->jti;
+            $jti     = $decoded->jti ?? null;
+
+            if (!$jti) {
+                return true;
+            }
 
             $key = (isset($decoded->type) && $decoded->type === 'refresh')
-                ? "jti:refresh:$jti"
-                : "jti:access:$jti";
+                ? "jti:refresh:{$jti}"
+                : "jti:access:{$jti}";
 
-            return $this->redis->get($key) !== null;
+            // Opozvan ako NE postoji u Redisu
+            return $this->redis->get($key) === null;
+
         } catch (\Exception $e) {
-            return true; // Ako dekodiranje ne uspe, tretiraj kao opozvan
+            return true;
         }
     }
 
     /**
-     * Dodaje access i refresh token kao Set-Cookie header-e u postojeći Response
-     * Ako response nije prosleđen, kreira novi
+     * Opoziva token brisanjem JTI iz Redisa
+     */
+    public function revokeToken(string $token): void
+    {
+        try {
+            $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
+            $jti     = $decoded->jti ?? null;
+            if (!$jti) return;
+
+            $key = (isset($decoded->type) && $decoded->type === 'refresh')
+                ? "jti:refresh:{$jti}"
+                : "jti:access:{$jti}";
+
+            $this->redis->del($key);
+        } catch (\Exception $e) {
+            // Token nevalidan — nema šta da se opozove
+        }
+    }
+
+    /**
+     * Dekoduje token i vraća user id
+     */
+    public function getUserFromToken(string $token): ?array
+    {
+        try {
+            $decoded = JWT::decode($token, new Key($this->secret, 'HS256'));
+            return ['id' => (int) $decoded->sub];
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Dodaje JWT cookie-je u PSR-7 response.
+     * secure=false na lokalnom HTTP, true na produkciji (HTTPS).
      */
     public function setAuthCookies(
         string $accessToken,
@@ -113,54 +166,36 @@ class JwtService
         ?ResponseInterface $response = null
     ): ResponseInterface {
         $response = $response ?? new Response(200);
+        $now      = time();
+        $secure   = ($_ENV['APP_ENV'] ?? 'local') === 'production';
 
-        $now = time();
-
-        // Access token cookie
-        $accessCookie = $this->buildCookieString(
-            'jwt_token',
-            $accessToken,
-            $now + $this->accessExpiry,
-            true,  // secure
-            true,  // httponly
-            'Lax'
-        );
-
-        // Refresh token cookie
-        $refreshCookie = $this->buildCookieString(
-            'refresh_token',
-            $refreshToken,
-            $now + $this->refreshExpiry,
-            true,
-            true,
-            'Lax'
-        );
-
-        $response = $response->withAddedHeader('Set-Cookie', $accessCookie);
-        $response = $response->withAddedHeader('Set-Cookie', $refreshCookie);
+        $response = $response->withAddedHeader('Set-Cookie', $this->buildCookieString(
+            'jwt_token', $accessToken, $now + $this->accessExpiry, $secure, true, 'Lax'
+        ));
+        $response = $response->withAddedHeader('Set-Cookie', $this->buildCookieString(
+            'refresh_token', $refreshToken, $now + $this->refreshExpiry, $secure, true, 'Lax'
+        ));
 
         return $response;
     }
 
     /**
-     * Briše auth cookie-je dodavanjem Set-Cookie sa prošlim expire-om
+     * Briše JWT cookie-je iz browsera
      */
     public function clearAuthCookies(?ResponseInterface $response = null): ResponseInterface
     {
         $response = $response ?? new Response(200);
 
-        $clearAccess  = $this->buildCookieString('jwt_token', '', time() - 3600, true, true, 'Lax');
-        $clearRefresh = $this->buildCookieString('refresh_token', '', time() - 3600, true, true, 'Lax');
-
-        $response = $response->withAddedHeader('Set-Cookie', $clearAccess);
-        $response = $response->withAddedHeader('Set-Cookie', $clearRefresh);
+        $response = $response->withAddedHeader('Set-Cookie', $this->buildCookieString(
+            'jwt_token', '', time() - 3600, false, true, 'Lax'
+        ));
+        $response = $response->withAddedHeader('Set-Cookie', $this->buildCookieString(
+            'refresh_token', '', time() - 3600, false, true, 'Lax'
+        ));
 
         return $response;
     }
 
-    /**
-     * Pomoćna metoda za generisanje Set-Cookie stringa
-     */
     private function buildCookieString(
         string $name,
         string $value,
@@ -173,21 +208,13 @@ class JwtService
             urlencode($name) . '=' . urlencode($value),
             'expires=' . gmdate('D, d M Y H:i:s T', $expires),
             'path=/',
-            $secure ? 'secure' : '',
+            $secure   ? 'secure'   : '',
             $httponly ? 'httponly' : '',
-            'samesite=' . $samesite
+            'samesite=' . $samesite,
         ];
-
         return implode('; ', array_filter($parts));
     }
 
-    public function getAccessExpiry(): int
-    {
-        return $this->accessExpiry;
-    }
-
-    public function getRefreshExpiry(): int
-    {
-        return $this->refreshExpiry;
-    }
+    public function getAccessExpiry(): int  { return $this->accessExpiry; }
+    public function getRefreshExpiry(): int { return $this->refreshExpiry; }
 }

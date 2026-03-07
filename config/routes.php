@@ -4,12 +4,6 @@ use FastRoute\RouteCollector;
 
 return function (RouteCollector $r) {
 
-    // ─────────────────────────────────────────
-    //  Middleware grupe
-    //  ErrorHandlerMiddleware i LoggingMiddleware
-    //  su globalni (dodaju se u index.php)
-    // ─────────────────────────────────────────
-
     $guest = [
         \App\Middlewares\GuestMiddleware::class,
         \App\Middlewares\CsrfMiddleware::class,
@@ -31,9 +25,13 @@ return function (RouteCollector $r) {
         \App\Middlewares\JsonInputMiddleware::class,
     ];
 
-    // ─────────────────────────────────────────
-    //  Javne rute (guest)
-    // ─────────────────────────────────────────
+    // Samo CsrfMiddleware — korisnik je u polu-autentifikovanom stanju
+    // (kredencijali OK, JWT još nije izdat, čeka 2FA verifikaciju)
+    $twoFa = [
+        \App\Middlewares\CsrfMiddleware::class,
+    ];
+
+    // ─── Javne rute ───────────────────────────────────────────────────────
 
     $r->addRoute('GET', '/', [
         'middleware' => $guest,
@@ -70,23 +68,24 @@ return function (RouteCollector $r) {
         'handler'    => [\App\Controllers\UserController::class, 'showForgotPassword']
     ]);
 
-    // ─────────────────────────────────────────
-    //  2FA rute (guest – korisnik još nije ulogovan)
-    // ─────────────────────────────────────────
+    // ─── 2FA ─────────────────────────────────────────────────────────────
 
     $r->addRoute('GET', '/verify-2fa', [
-        'middleware' => $guest,
+        'middleware' => $twoFa,
         'handler'    => [\App\Controllers\UserController::class, 'verifyTwoFactor']
     ]);
 
     $r->addRoute('POST', '/verify-2fa', [
-        'middleware' => $guest,
+        'middleware' => $twoFa,
         'handler'    => [\App\Controllers\UserController::class, 'verifyTwoFactor']
     ]);
 
-    // ─────────────────────────────────────────
-    //  Zaštićene rute (auth)
-    // ─────────────────────────────────────────
+    // ─── Zaštićene rute ───────────────────────────────────────────────────
+
+    $r->addRoute('GET', '/home', [
+        'middleware' => $auth,
+        'handler'    => [\App\Controllers\UserController::class, 'showHome']
+    ]);
 
     $r->addRoute('POST', '/logout', [
         'middleware' => $auth,

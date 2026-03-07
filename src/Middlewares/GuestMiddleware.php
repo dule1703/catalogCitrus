@@ -22,7 +22,7 @@ class GuestMiddleware implements MiddlewareInterface
             throw new \RuntimeException('JWT_SECRET nije definisan u .env fajlu.');
         }
         $this->jwtSecret = $jwtSecret;
-        $this->logger = $logger;
+        $this->logger    = $logger;
     }
 
     public function process(
@@ -30,24 +30,28 @@ class GuestMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler
     ): ResponseInterface {
         $cookies = $request->getCookieParams();
+        $token   = $cookies['jwt_token'] ?? null;
 
-        if (!isset($cookies['jwt_token'])) {
-            return $handler->handle($request); // gost → nastavi
+        // Nema cookie-ja — gost, nastavi normalno
+        if (!$token) {
+            return $handler->handle($request);
         }
 
+        // Cookie postoji — proveri da li je token STVARNO validan
         try {
-            $token = $cookies['jwt_token'];
-            $decoded = JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
-
-            // Korisnik je prijavljen → redirect na dashboard
-            return new Response(302, ['Location' => '/dashboard']);
+            JWT::decode($token, new Key($this->jwtSecret, 'HS256'));
+            // Token je validan — korisnik je ulogovan, redirect na /home
+            $this->logger->debug('GuestMiddleware: validan JWT, redirect na /home');
+            return new Response(302, ['Location' => '/home']);
         } catch (\Exception $e) {
-            $this->logger->debug('GuestMiddleware: nevalidan JWT token', [
-                'error' => $e->getMessage(),
-                'request_id' => $request->getAttribute('request_id', 'unknown')
-            ]);
-
-            return $handler->handle($request); 
+            // Token je nevalidan ili istekao — obrisi cookie i pusti kao gosta
+            $this->logger->debug('GuestMiddleware: nevalidan/istekao JWT, nastavljam kao gost');
+            $response = $handler->handle($request);
+            // Obrisi neispravan cookie
+            return $response->withAddedHeader(
+                'Set-Cookie',
+                'jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; httponly'
+            );
         }
     }
 }

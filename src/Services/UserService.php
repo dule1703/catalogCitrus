@@ -6,7 +6,6 @@ use App\Repositories\UserRepository;
 use InvalidArgumentException;
 use RuntimeException;
 use Psr\Log\LoggerInterface;
-use App\Services\InputValidator;
 use App\RedisClient;
 
 class UserService
@@ -16,10 +15,10 @@ class UserService
     private RedisClient $redis;
     private EmailService $emailService;
 
-    private const MAX_ATTEMPTS = 5;
-    private const BLOCK_DURATION = 3600; // 1 sat
-    private const RATE_LIMIT_WINDOW = 900; // 15 min
-    private const RATE_LIMIT_MAX = 5;
+    private const MAX_ATTEMPTS          = 5;
+    private const BLOCK_DURATION        = 3600; // 1 sat
+    private const RATE_LIMIT_WINDOW     = 900;  // 15 min
+    private const RATE_LIMIT_MAX        = 5;
     private const REGISTER_RATE_LIMIT_MAX = 10;
 
     public function __construct(
@@ -29,24 +28,25 @@ class UserService
         EmailService $emailService
     ) {
         $this->userRepository = $userRepository;
-        $this->logger = $logger;
-        $this->redis = $redis;
-        $this->emailService = $emailService;
+        $this->logger         = $logger;
+        $this->redis          = $redis;
+        $this->emailService   = $emailService;
     }
 
     public function registerUser(array $data): bool
     {
         $ipAddress = $this->getClientIp();
+
         if ($this->isRateLimitedForRegister($ipAddress)) {
             $this->logger->warning("Rate limit premašen za IP: $ipAddress prilikom registracije");
             throw new RuntimeException('Previše pokušaja registracije. Pokušaj ponovo kasnije.');
         }
 
         $requiredFields = ['username', 'email', 'password'];
-        $validatedData = InputValidator::validateInputArray($data, $requiredFields);
-        $username = InputValidator::validateUsername($validatedData['username']);
-        $email = InputValidator::validateEmail($validatedData['email']);
-        $password = InputValidator::validatePassword($validatedData['password']);
+        $validatedData  = InputValidator::validateInputArray($data, $requiredFields);
+        $username       = InputValidator::validateUsername($validatedData['username']);
+        $email          = InputValidator::validateEmail($validatedData['email']);
+        $password       = InputValidator::validatePassword($validatedData['password']);
 
         if (!$this->isPasswordStrong($password)) {
             throw new InvalidArgumentException('Lozinka mora sadržati bar jedan specijalni znak (npr. !@#$%) i izbegavati uobičajene kombinacije.');
@@ -58,12 +58,14 @@ class UserService
         }
 
         $hashedPassword = $this->hashPassword($password);
+
         $userData = [
-            'username' => $username,
-            'email' => $email,
-            'password' => $hashedPassword,
-            'role' => 'user',
-            'two_factor_enabled' => 0
+            'username'           => $username,
+            'email'              => $email,
+            'password'           => $hashedPassword,
+            'role'               => 'user',
+            // ✅ 2FA je uvek uključen za sve korisnike
+            'two_factor_enabled' => 1,
         ];
 
         try {
@@ -81,12 +83,29 @@ class UserService
     public function login(string $username, string $password): ?array
     {
         $ipAddress = $this->getClientIp();
+
         if ($this->isRateLimited($ipAddress)) {
             $this->logger->warning("Rate limit premašen za IP: $ipAddress");
             return null;
         }
 
+        // ✅ Samo trim i osnovna validacija — bez validatePassword() koji baca exception
+        //    za lozinke koje ne odgovaraju registracionom formatu
         $username = trim($username);
+        $password = trim($password);
+
+        if (empty($username) || empty($password)) {
+            return null;
+        }
+
+        // Validacija formata korisničkog imena (samo format, ne lozinke)
+        try {
+            $username = InputValidator::validateUsername($username);
+        } catch (InvalidArgumentException $e) {
+            $this->logger->info("Login neuspešan — neispravan format username-a");
+            return null;
+        }
+
         $user = $this->userRepository->findByUsername($username);
 
         if (!$user) {
@@ -108,7 +127,9 @@ class UserService
         $this->userRepository->logAttempt($user['id'], $ipAddress, 1);
         $this->resetFailedAttempts($ipAddress);
         $this->resetRateLimit($ipAddress);
+
         $this->logger->info("Uspešan login za: {$username}, ID: {$user['id']}");
+
         unset($user['password']);
         return $user;
     }
@@ -116,6 +137,7 @@ class UserService
     public function verifyTwoFactorCode(int $userId, string $code): bool
     {
         $row = $this->userRepository->getLatestTwoFactorCode($userId);
+
         if (!$row) {
             $this->logger->info("Nema važećeg 2FA koda za user_id: $userId");
             return false;
@@ -133,11 +155,13 @@ class UserService
 
     public function generateTwoFactorCode(int $userId): string
     {
-        $code = sprintf('%06d', mt_rand(0, 999999));
+        $code      = sprintf('%06d', random_int(0, 999999));
+        $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minuta
+
         $this->userRepository->deleteTwoFactorCodes($userId);
-        $expiresAt = date('Y-m-d H:i:s', time() + 600);
         $this->userRepository->saveTwoFactorCode($userId, $code, $expiresAt);
-        $this->logger->info("2FA kod generisan za user_id: $userId, kod: $code");
+
+        $this->logger->info("2FA kod generisan za user_id: $userId");
         return $code;
     }
 
@@ -145,109 +169,89 @@ class UserService
     {
         $code = $this->generateTwoFactorCode($userId);
         $sent = $this->emailService->sendTwoFactorCode($email, $username, $code);
+
         if (!$sent) {
             $this->logger->warning("2FA email NIJE POSLAT za user_id: $userId");
         }
+
         return $code;
     }
 
-    //PRIVATE FUNKCIJE
+    // ─────────────────────────────────────────
+    //  Private helpers
+    // ─────────────────────────────────────────
 
-    private function isRateLimited(string $ipAddress): bool
+    private function hashPassword(string $password): string
     {
-        $key = "rate_limit:$ipAddress";
-        $attempts = (int)$this->redis->get($key) ?: 0;
-        if ($attempts >= self::RATE_LIMIT_MAX) {
-            return true;
-        }
-        $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
-        return false;
+        return password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
     }
 
-    private function isRateLimitedForRegister(string $ipAddress): bool
+    private function needsRehash(string $hash): bool
     {
-        $key = "register_rate_limit:$ipAddress";
-        $attempts = (int)$this->redis->get($key) ?: 0;
-        if ($attempts >= self::REGISTER_RATE_LIMIT_MAX) {
-            return true;
-        }
-        $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
-        return false;
+        return password_needs_rehash($hash, PASSWORD_BCRYPT, ['cost' => 12]);
     }
 
-    private function logFailedAttempt(?int $userId, string $username, string $ipAddress): void
+    private function updatePassword(int $userId, string $newPassword): void
     {
-        $this->logger->warning("Failed login attempt", [
-            'user_id' => $userId,
+        $newHash = $this->hashPassword($newPassword);
+        $this->userRepository->updatePassword($userId, $newHash);
+    }
+
+    private function isRateLimited(string $ip): bool
+    {
+        $key      = "login_rate:{$ip}";
+        $attempts = (int)($this->redis->get($key) ?? 0);
+        return $attempts >= self::RATE_LIMIT_MAX;
+    }
+
+    private function isRateLimitedForRegister(string $ip): bool
+    {
+        $key      = "register_rate:{$ip}";
+        $attempts = (int)($this->redis->get($key) ?? 0);
+        return $attempts >= self::REGISTER_RATE_LIMIT_MAX;
+    }
+
+    private function incrementRateLimit(string $ip): void
+    {
+        $key      = "login_rate:{$ip}";
+        $attempts = (int)($this->redis->get($key) ?? 0);
+        $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
+    }
+
+    private function resetRateLimit(string $ip): void
+    {
+        $this->redis->del("login_rate:{$ip}");
+    }
+
+    private function logFailedAttempt(?int $userId, string $username, string $ip): void
+    {
+        $this->logger->warning("Neuspešan login pokušaj", [
             'username' => $username,
-            'ip' => $ipAddress
+            'ip'       => $ip,
+            'user_id'  => $userId,
         ]);
-        $this->userRepository->logAttempt($userId, $ipAddress, 0);
-        $key = "failed_attempts:$ipAddress";
-        $attempts = (int)$this->redis->get($key) ?: 0;
-        $attempts++;
+
+        $key      = "failed_attempts:{$ip}";
+        $attempts = (int)($this->redis->get($key) ?? 0) + 1;
         $this->redis->set($key, $attempts, self::BLOCK_DURATION);
+
         if ($attempts >= self::MAX_ATTEMPTS) {
-            $this->logger->warning("Blokada IP adrese: $ipAddress zbog previše neuspešnih pokušaja");
+            $this->logger->warning("Previše neuspešnih pokušaja za IP: $ip — blokiran na 1 sat");
         }
     }
 
-    private function resetFailedAttempts(string $ipAddress): void
+    private function resetFailedAttempts(string $ip): void
     {
-        $key = "failed_attempts:$ipAddress";
-        $this->redis->del($key);
+        $this->redis->del("failed_attempts:{$ip}");
     }
 
     private function isPasswordStrong(string $password): bool
     {
-        if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)) {
-            return false;
-        }
-        $commonPasswords = ['password123', '12345678', 'admin123'];
-        return !in_array(strtolower($password), $commonPasswords, true);
-    }
-
-    private function hashPassword(string $password): string
-    {
-        $options = [
-            'memory_cost' => PASSWORD_ARGON2_DEFAULT_MEMORY_COST * 2,
-            'time_cost' => 4,
-            'threads' => 2,
-        ];
-        return password_hash($password, PASSWORD_ARGON2ID, $options);
-    }
-
-    private function needsRehash(string $hashedPassword): bool
-    {
-        $options = [
-            'memory_cost' => PASSWORD_ARGON2_DEFAULT_MEMORY_COST * 2,
-            'time_cost' => 4,
-            'threads' => 2,
-        ];
-        return password_needs_rehash($hashedPassword, PASSWORD_ARGON2ID, $options);
-    }
-
-    private function updatePassword(int $userId, string $password): void
-    {
-        $newHash = $this->hashPassword($password);
-        $this->userRepository->updatePassword($userId, $newHash);
+        return (bool) preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password);
     }
 
     private function getClientIp(): string
     {
         return $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    }
-
-    private function incrementRateLimit(string $ipAddress): void
-    {
-        $key = "rate_limit:$ipAddress";
-        $attempts = (int)$this->redis->get($key) ?: 0;
-        $this->redis->set($key, $attempts + 1, self::RATE_LIMIT_WINDOW);
-    }
-
-    private function resetRateLimit(string $ipAddress): void
-    {
-        $key = "rate_limit:$ipAddress";
-        $this->redis->del($key);
     }
 }
