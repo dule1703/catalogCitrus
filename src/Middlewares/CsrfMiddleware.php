@@ -8,15 +8,19 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Nyholm\Psr7\Response;
+use App\Services\CsrfService;
 
 class CsrfMiddleware implements MiddlewareInterface
 {
+    private CsrfService $csrfService;
     private LoggerInterface $logger;
     private bool $debug;
 
-    public function __construct(LoggerInterface $logger)
+    public function __construct(CsrfService $csrfService , LoggerInterface $logger)
     {
+
         $this->logger = $logger;
+        $this->csrfService = $csrfService;
 
         // Čitanje APP_DEBUG (kao u ErrorHandlerMiddleware)
         $debugEnv = getenv('APP_DEBUG') !== false
@@ -69,8 +73,8 @@ class CsrfMiddleware implements MiddlewareInterface
         $cookies = $request->getCookieParams();
 
         if (!isset($cookies['csrf_token']) || empty($cookies['csrf_token'])) {
-            $csrfToken = bin2hex(random_bytes(32));
-
+            // $csrfToken = bin2hex(random_bytes(32));
+                $csrfToken = $this->csrfService->generateToken();
             setcookie('csrf_token', $csrfToken, [
                 'expires'  => time() + 86400, // 24 sata – dovoljno za sesiju
                 'path'     => '/',
