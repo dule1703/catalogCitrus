@@ -35,7 +35,7 @@ return function (RouteCollector $r) {
 
     $r->addRoute('GET', '/', [
         'middleware' => $guest,
-        'handler'    => [\App\Controllers\UserController::class, 'showLoginForm']
+        'handler'    => [\App\Controllers\ProductController::class, 'index']
     ]);
 
     $r->addRoute('GET', '/login', [

@@ -7,7 +7,10 @@ use App\Services\EmailService;
 use App\Repositories\UserRepository;
 use Psr\Log\LoggerInterface;
 use App\RedisClient;
+use App\Repositories\ProductRepository;
 use App\Services\InputValidator;
+use App\Services\ProductService;
+
 use function DI\autowire;
 use function DI\get;
 
@@ -32,6 +35,10 @@ return [
 
     UserService::class => autowire()
         ->constructorParameter('logger', get(LoggerInterface::class)),
+
+    ProductRepository::class => autowire(),
+
+    ProductService::class => autowire(), 
 
     CsrfService::class => autowire(),
 

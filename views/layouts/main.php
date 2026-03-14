@@ -10,9 +10,7 @@
    
 </head>
 <body>
-    <div class="header">
-        <h1 class="text-2xl font-bold">CitrusApp</h1>
-    </div>
+    <?php require __DIR__ . '/../partials/header.php'; ?>
 
     <main class="flex items-center justify-center min-h-screen p-4">
         <?php require $viewPath; ?>
