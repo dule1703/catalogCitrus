@@ -1,17 +1,18 @@
-document.addEventListener('DOMContentLoaded', () => {    
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // === REGISTRACIJA ===
     const form = document.getElementById('registerForm');
     const errorMessage = document.getElementById('error-message');
 
-    // === REGISTRACIJA ===
-    if (form) {       
+    if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             console.log('Form submitted');
+
             const username = document.getElementById('username').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const csrfToken = document.querySelector('input[name="_csrf_token"]').value || null;
-            console.log('CSRF Token:', csrfToken);
 
             // Klijentska validacija
             const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
@@ -30,9 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage.classList.remove('hidden');
                 return;
             }
+
             errorMessage.classList.add('hidden');
 
             const data = { username, email, password };
+
             try {
                 const response = await fetch('/register', {
                     method: 'POST',
@@ -43,7 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     body: JSON.stringify(data)
                 });
+
                 const result = await response.json();
+
                 if (response.ok) {
                     window.location.href = '/register/success';
                 } else {
@@ -55,35 +60,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage.classList.remove('hidden');
             }
         });
-    } 
+    }
 
-    // AUTO-LOGOUT NAKON 5 MINUTA NEAKTIVNOSTI ===
-    (() => {
-        const INACTIVITY_TIMEOUT = 15 * 60 * 1000; 
-        let timeoutId = null;
+         // === LOAD MORE KOMENTARA ===
+    // Koristimo event delegation jer se dugme nalazi u dinamičkom delu stranice
+    document.addEventListener('click', async (e) => {
+        if (e.target && e.target.id === 'load-more-btn') {
+            const btn = e.target;
+            const originalText = btn.textContent;
 
-        const resetTimer = () => {
-            if (timeoutId) clearTimeout(timeoutId);
-            timeoutId = setTimeout(logout, INACTIVITY_TIMEOUT);
-        };
+            btn.textContent = 'Učitavam...';
+            btn.disabled = true;
 
-        const logout = () => {
-            document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-            document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
-            window.location.href = '/';
-        };
+            let offset = parseInt(btn.dataset.offset || '3');
+            const limit = 3;
 
-        // Reset tajmera na bilo koju aktivnost
-        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
-            document.addEventListener(event, resetTimer, true);
-        });
+            try {
+                const response = await fetch(`/comments/load-more?offset=${offset}`);
+                
+                if (!response.ok) {
+                    throw new Error('Server error');
+                }
 
-        // Pokreni tajmer
-        resetTimer();
+                const data = await response.json();
 
-        // Očisti tajmer ako korisnik napusti stranicu
-        window.addEventListener('beforeunload', () => {
-            if (timeoutId) clearTimeout(timeoutId);
-        });
-    })();
+                if (data.comments && data.comments.length > 0) {
+                    const container = document.getElementById('comments-container');
+
+                    data.comments.forEach(comment => {
+                        const card = document.createElement('div');
+                        card.className = 'bg-white rounded-2xl shadow p-6';
+                        card.innerHTML = `
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-semibold text-lg">
+                                    ${comment.name ? comment.name[0].toUpperCase() : 'K'}
+                                </div>
+                                <div>
+                                    <p class="font-semibold">${comment.name || 'Anonimni kupac'}</p>
+                                    <p class="text-xs text-gray-500">
+                                        ${new Date(comment.created_at).toLocaleDateString('sr-RS')}
+                                    </p>
+                                </div>
+                            </div>
+                            <p class="text-gray-700 leading-relaxed">"${comment.text}"</p>
+                        `;
+                        container.appendChild(card);
+                    });
+
+                    offset += limit;
+                    btn.dataset.offset = offset;
+
+                    if (!data.hasMore) {
+                        btn.style.display = 'none';
+                    }
+                } else {
+                    btn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Greška pri učitavanju komentara:', error);
+                btn.textContent = 'Greška – pokušaj ponovo';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2500);
+            } finally {
+                if (btn.style.display !== 'none') {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
+            }
+        }
+    });
 });

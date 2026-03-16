@@ -30,9 +30,11 @@ class ProductController
         $this->logger->info("Product index called – učitavam 9 proizvoda");
 
         $products = $this->productService->getFeaturedProducts(9);
+        $comments = $this->productService->getApprovedCommentsWithOffset(3, 0);
 
         $content = $this->viewRenderer->render('products/index.php', [
             'products'   => $products ?? [],
+            'comments'   => $comments ?? [],
             'title'      => 'Početna - CitrusApp',
             // // ako želiš da header zna da li je korisnik ulogovan (iz prethodnog odgovora)
             // 'isLoggedIn' => $request->getAttribute('isLoggedIn', false),
@@ -45,4 +47,25 @@ class ProductController
             $content
         );
     }
+
+    /**
+     * AJAX endpoint - Učitaj još komentara
+     */
+    public function loadMoreComments(ServerRequestInterface $request, array $vars): ResponseInterface
+    {
+        $offset = (int)($request->getQueryParams()['offset'] ?? 0);
+
+        $comments = $this->productService->getApprovedCommentsWithOffset(3, $offset);
+
+        return new Response(
+            200,
+            ['Content-Type' => 'application/json; charset=utf-8'],
+            json_encode([
+                'comments' => $comments ?? [],
+                'hasMore'  => count($comments ?? []) === 3
+            ], JSON_UNESCAPED_UNICODE)
+        );
+    }
+
+    
 }

@@ -20,4 +20,29 @@ class ProductRepository
             ['limit' => $limit]
         );
     }
+
+    public function getApprovedComments(int $limit = 10): ?array {
+        return $this->db->query(
+            'SELECT id, name, email, text, created_at
+             FROM comments
+             WHERE approved = 1
+             ORDER BY created_at DESC
+             LIMIT :limit',
+             ['limit' => $limit]
+        );
+    }
+
+    public function getApprovedCommentsWithOffset(int $limit = 3, int $offset = 0): ?array {
+        return $this->db->query(
+            'SELECT id, name, text, email, created_at
+             FROM comments 
+             WHERE approved = 1
+             ORDER BY created_at DESC
+             LIMIT :limit OFFSET :offset',
+             [
+                'limit' => $limit,
+                'offset' => $offset
+             ]
+        );
+    }
 }

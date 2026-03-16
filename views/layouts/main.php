@@ -10,6 +10,7 @@
    
 </head>
 <body>
+    
     <?php require __DIR__ . '/../partials/header.php'; ?>
 
     <main class="flex items-center justify-center min-h-screen p-4">
@@ -19,6 +20,9 @@
     <div class="footer">
         <p>&copy; <?php echo date('Y'); ?> CitrusApp</p>
     </div>
-     <script src="/js/app.js"></script>
+    <script>
+        console.log('🚀 app.js se učitao na ovoj stranici!');
+    </script>
+    <script src="/js/app.js"></script>
 </body>
 </html>

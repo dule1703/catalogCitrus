@@ -34,7 +34,7 @@ return function (RouteCollector $r) {
     // ─── Javne rute ───────────────────────────────────────────────────────
 
     $r->addRoute('GET', '/', [
-        'middleware' => $guest,
+        'middleware' => [],
         'handler'    => [\App\Controllers\ProductController::class, 'index']
     ]);
 
@@ -66,6 +66,13 @@ return function (RouteCollector $r) {
     $r->addRoute('GET', '/forgot-password', [
         'middleware' => $guest,
         'handler'    => [\App\Controllers\UserController::class, 'showForgotPassword']
+    ]);
+
+    // ─── Comments ─────────────────────────────────────────────────────────────
+
+    $r->addRoute('GET', '/comments/load-more', [
+        'middleware' => [],
+        'handler'    => [\App\Controllers\ProductController::class, 'loadMoreComments']
     ]);
 
     // ─── 2FA ─────────────────────────────────────────────────────────────

@@ -56,4 +56,49 @@
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
+    <!-- KOMENTARI -->
+    <div class="mt-20">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-10">
+            Šta kažu naši kupci
+        </h2>
+
+        <?php if (empty($comments)): ?>
+            <div class="text-center text-gray-500 py-10">
+                <p>Nema odobrenih komentara trenutno.</p>
+            </div>
+        <?php else: ?>
+            
+            <!-- Grid komentara -->
+            <div id="comments-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <?php foreach ($comments as $comment): ?>
+                    <div class="bg-white rounded-2xl shadow p-6">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-semibold">
+                                <?= strtoupper(substr($comment['name'] ?? 'K', 0, 1)) ?>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-gray-800"><?= htmlspecialchars($comment['name'] ?? 'Anonimni kupac') ?></p>
+                                <p class="text-xs text-gray-500">
+                                    <?= date('d.m.Y.', strtotime($comment['created_at'])) ?>
+                                </p>
+                            </div>
+                        </div>
+                        <p class="text-gray-700 leading-relaxed">
+                            "<?= htmlspecialchars($comment['text']) ?>"
+                        </p>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Dugme "Učitaj još" -->
+            <div class="text-center mt-12 mb-12">
+                <button id="load-more-btn"
+                        data-offset="3"
+                        class="px-8 py-3 bg-orange-600 text-white font-medium rounded-xl hover:bg-orange-700 transition-colors">
+                    Učitaj još komentara
+                </button>
+            </div>
+
+        <?php endif; ?>
+    </div>
 </div>
