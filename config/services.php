@@ -4,12 +4,16 @@ use App\Services\UserService;
 use App\Services\JwtService;
 use App\Services\CsrfService;
 use App\Services\EmailService;
-use App\Repositories\UserRepository;
-use Psr\Log\LoggerInterface;
-use App\RedisClient;
-use App\Repositories\ProductRepository;
+use App\Services\CommentService;
 use App\Services\InputValidator;
 use App\Services\ProductService;
+use App\Repositories\UserRepository;
+use App\Repositories\CommentRepository;
+use App\Repositories\ProductRepository;
+use Psr\Log\LoggerInterface;
+use App\RedisClient;
+
+
 
 use function DI\autowire;
 use function DI\get;
@@ -37,9 +41,8 @@ return [
         ->constructorParameter('logger', get(LoggerInterface::class)),
 
     ProductRepository::class => autowire(),
-
     ProductService::class => autowire(), 
-
+   
     CsrfService::class => autowire(),
 
     InputValidator::class => autowire(),

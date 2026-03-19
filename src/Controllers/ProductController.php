@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Services\CsrfService;
 use App\Services\ProductService;
 use App\View\ViewRenderer;
 use Psr\Log\LoggerInterface;
@@ -12,15 +13,18 @@ use Nyholm\Psr7\Response;
 class ProductController
 {
     private ProductService $productService;
+    private CsrfService $csrfService;
     private ViewRenderer $viewRenderer;
     private LoggerInterface $logger;
 
     public function __construct(
         ProductService $productService,
+        CsrfService $csrfService,
         ViewRenderer $viewRenderer,
         LoggerInterface $logger
     ) {
         $this->productService = $productService;
+        $this->csrfService = $csrfService;
         $this->viewRenderer   = $viewRenderer;
         $this->logger         = $logger;
     }
@@ -32,13 +36,29 @@ class ProductController
         $products = $this->productService->getFeaturedProducts(9);
         $comments = $this->productService->getApprovedCommentsWithOffset(3, 0);
 
+        $successMessage = null;
+        $errorMessage   = null;
+
+        $params = $request->getQueryParams();
+
+        if (isset($params['success'])) {
+            match ($params['success']) {
+                'comment_added' => $successMessage = 'Hvala vam! Vaš komentar je uspešno poslat i biće objavljen nakon odobrenja.',
+                default         => $successMessage = 'Operacija uspešno izvršena.'
+            };
+        }
+
+        if (isset($params['error'])) {
+            $errorMessage = urldecode($params['error']);
+        }
         $content = $this->viewRenderer->render('products/index.php', [
             'products'   => $products ?? [],
             'comments'   => $comments ?? [],
             'title'      => 'Početna - CitrusApp',
-            // // ako želiš da header zna da li je korisnik ulogovan (iz prethodnog odgovora)
-            // 'isLoggedIn' => $request->getAttribute('isLoggedIn', false),
-            // 'user'       => $request->getAttribute('user', null),
+            'csrfService' => $this->csrfService,               
+            'csrf_token'  => $this->getCsrfToken($request) ?? '',     
+            'successMessage'  => $successMessage,
+            'errorMessage'    => $errorMessage,   
         ]);
 
         return new Response(
@@ -46,6 +66,12 @@ class ProductController
             ['Content-Type' => 'text/html; charset=utf-8'],
             $content
         );
+    }
+
+    private function getCsrfToken(ServerRequestInterface $request): string
+    {
+        return $request->getCookieParams()['csrf_token'] 
+            ?? $request->getAttribute('csrf_token', '');
     }
 
     /**

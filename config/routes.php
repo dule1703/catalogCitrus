@@ -34,7 +34,7 @@ return function (RouteCollector $r) {
     // ─── Javne rute ───────────────────────────────────────────────────────
 
     $r->addRoute('GET', '/', [
-        'middleware' => [],
+        'middleware' => [\App\Middlewares\CsrfMiddleware::class,],
         'handler'    => [\App\Controllers\ProductController::class, 'index']
     ]);
 
@@ -74,6 +74,11 @@ return function (RouteCollector $r) {
         'middleware' => [],
         'handler'    => [\App\Controllers\ProductController::class, 'loadMoreComments']
     ]);
+
+    $r->addRoute('POST', '/comments', [
+    'middleware' => $guest,           // ili $guest ako dozvoljavaš anonimne komentare
+    'handler'    => [\App\Controllers\CommentController::class, 'store']
+]);
 
     // ─── 2FA ─────────────────────────────────────────────────────────────
 

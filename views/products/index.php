@@ -1,15 +1,3 @@
-<?php
-// views/products/index.php
-
-// Očekivane promenljive iz controllera:
-// - $products     = niz proizvoda (array of assoc arrays)
-// - $isLoggedIn   = bool
-// - $user         = array sa podacima o korisniku (ili null)
-// - $title        = string (npr. "Početna - CitrusApp")
-
-// Ovo je sadržaj koji će se ubaciti u main layout
-?>
-
 <div class="py-8">
     <h1 class="text-3xl font-bold text-center text-gray-800 mb-10">
         Naši sveži citrusi
@@ -101,4 +89,47 @@
 
         <?php endif; ?>
     </div>
+         <!-- === FORMA ZA NOVI KOMENTAR === -->
+    <div class="mt-12 bg-white rounded-2xl shadow p-8">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Ostavi svoj komentar</h2>
+
+        <?php if (!empty($errorMessage)): ?>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center">
+                <?= htmlspecialchars($errorMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($successMessage)): ?>
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6 text-center">
+                <?= htmlspecialchars($successMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" action="/comments" class="space-y-6">
+            <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
+
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">Vaše ime</label>
+                <input type="text" name="name" id="name" required
+                       class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700">Vaš email</label>
+                <input type="email" name="email" id="email" required
+                       class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+
+            <div>
+                <label for="text" class="block text-sm font-medium text-gray-700">Vaš komentar</label>
+                <textarea name="text" id="text" rows="5" required
+                          class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+            </div>
+
+            <button type="submit"
+                    class="submit-button w-full bg-orange-600 text-white py-3 px-4 rounded-xl hover:bg-orange-700 transition-colors">
+                Pošalji komentar
+            </button>
+        </form>
+    </div>               
 </div>
