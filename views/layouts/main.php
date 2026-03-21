@@ -20,9 +20,6 @@
     <div class="footer">
         <p>&copy; <?php echo date('Y'); ?> CitrusApp</p>
     </div>
-    <script>
-        console.log('🚀 app.js se učitao na ovoj stranici!');
-    </script>
     <script src="/js/app.js"></script>
 </body>
 </html>

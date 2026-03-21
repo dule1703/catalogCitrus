@@ -94,9 +94,9 @@ return function (RouteCollector $r) {
 
     // ─── Zaštićene rute ───────────────────────────────────────────────────
 
-    $r->addRoute('GET', '/home', [
+    $r->addRoute('GET', '/dashboard', [
         'middleware' => $auth,
-        'handler'    => [\App\Controllers\UserController::class, 'showHome']
+        'handler'    => [\App\Controllers\ProductController::class, 'dashboard']
     ]);
 
     $r->addRoute('POST', '/logout', [

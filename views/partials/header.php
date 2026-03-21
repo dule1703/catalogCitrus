@@ -4,26 +4,26 @@
             <a href="/" class="hover:text-orange-200">CitrusApp</a>
         </div>
 
-        <nav class="space-x-6">
+        <nav class="space-x-6 flex items-center">
             <?php if (!empty($isLoggedIn)): ?>
-                <!-- Ulogovan -->
+                <!-- ULOGOVAN -->
                 <span class="font-medium">
                     <?= htmlspecialchars($currentUser['username'] ?? 'Korisnik') ?>
                 </span>
 
-                <a href="/logout" 
-                   class="bg-white text-orange-600 px-4 py-2 rounded hover:bg-gray-100 transition">
-                    Odjavi se
-                </a>
+                <!-- Logout preko forme - POST metoda -->
+                <form method="POST" action="/logout" class="inline">
+                    <?= $csrfService->getHiddenInput($csrf_token ?? '') ?>
+                    <button type="submit"
+                            class="bg-white text-orange-600 px-5 py-2 rounded hover:bg-gray-100 transition font-medium">
+                        Odjavi se
+                    </button>
+                </form>
             <?php else: ?>
                 <!-- Gost -->
-                <a href="/login" 
-                   class="hover:text-orange-200 transition">
-                    Prijava
-                </a>
-
+                <a href="/login" class="hover:text-orange-200 transition font-medium">Prijava</a>
                 <a href="/register" 
-                   class="bg-white text-orange-600 px-4 py-2 rounded hover:bg-gray-100 transition">
+                class="bg-white text-orange-600 px-5 py-2 rounded hover:bg-gray-100 transition font-medium">
                     Registracija
                 </a>
             <?php endif; ?>

@@ -92,7 +92,7 @@ class UserController
             $user = $this->userRepository->findById($userData['id']);
         }
 
-        $html = $this->viewRenderer->render('home.php', [
+        $html = $this->viewRenderer->render('dashboard.php', [
             'title'       => 'Početna',
             'user'        => $user,
             'csrfService' => $this->csrfService,
@@ -314,7 +314,7 @@ class UserController
         return $this->jwtService->setAuthCookies(
             $accessToken,
             $refreshToken,
-            new Response(302, ['Location' => '/home'])
+            new Response(302, ['Location' => '/dashboard'])
         );
     }
 
